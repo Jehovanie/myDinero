@@ -4,10 +4,20 @@
 import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { formatMonthLabel, shiftMonth, getCurrentMonth } from "../constants/categories";
+import { formatMonthLabel, shiftMonth, getCurrentMonth, isFutureMonth } from "../constants/categories";
 
-export default function MonthSelector({ selectedMonth, onMonthChange, className = "" }) {
-	const canGoNext = selectedMonth < getCurrentMonth();
+export default function MonthSelector({
+	selectedMonth,
+	onMonthChange,
+	className = "",
+	allowFuture = true,
+	maxFutureMonths = 12,
+}) {
+	const currentMonth = getCurrentMonth();
+	const maxMonth = allowFuture ? shiftMonth(currentMonth, maxFutureMonths) : currentMonth;
+	const canGoNext = selectedMonth < maxMonth;
+	const isCurrent = selectedMonth === currentMonth;
+	const isFuture = isFutureMonth(selectedMonth);
 
 	return (
 		<View className={`flex-row items-center justify-between bg-white rounded-2xl px-3 py-2 shadow-sm border border-gray-100 ${className}`}>
@@ -21,7 +31,8 @@ export default function MonthSelector({ selectedMonth, onMonthChange, className 
 
 			<View className="items-center px-2">
 				<Text className="text-gray-800 font-semibold text-base">{formatMonthLabel(selectedMonth)}</Text>
-				{selectedMonth === getCurrentMonth() && <Text className="text-primary text-xs mt-0.5">Mois en cours</Text>}
+				{isCurrent && <Text className="text-primary text-xs mt-0.5">Mois en cours</Text>}
+				{isFuture && <Text className="text-blue-500 text-xs mt-0.5">Planification</Text>}
 			</View>
 
 			<TouchableOpacity

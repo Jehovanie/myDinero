@@ -23,7 +23,8 @@ import {
 	markScheduledAsPaid,
 	getTransactions,
 } from "../services/supabase";
-import { formatCurrency, getCurrentMonth, formatMonthLabel } from "../constants/categories";
+import { formatCurrency, getCurrentMonth, formatMonthLabel, isFutureMonth } from "../constants/categories";
+import MonthSelector from "../components/MonthSelector";
 import ScheduledExpenseModal from "../components/ScheduledExpenseModal";
 import { rescheduleAllReminders, scheduleReminder, cancelReminder } from "../services/notifications";
 
@@ -52,6 +53,7 @@ function ScheduledCard({ expense, status, onPay, onDelete }) {
 		paid: { label: "Payé ✓", bg: "bg-green-50", text: "text-green-600", border: "border-green-200" },
 		today: { label: "Aujourd'hui !", bg: "bg-orange-50", text: "text-orange-600", border: "border-orange-200" },
 		overdue: { label: "En retard", bg: "bg-red-50", text: "text-red-600", border: "border-red-200" },
+		planned: { label: "Prévu", bg: "bg-blue-50", text: "text-blue-600", border: "border-blue-200" },
 		upcoming: { label: `Le ${expense.due_day}`, bg: "bg-gray-50", text: "text-gray-500", border: "border-gray-200" },
 	};
 	const s = statusConfig[status] || statusConfig.upcoming;
@@ -92,7 +94,9 @@ function ScheduledCard({ expense, status, onPay, onDelete }) {
 						activeOpacity={0.7}
 					>
 						<Ionicons name="checkmark-circle-outline" size={16} color="#00B894" />
-						<Text className="text-green-600 font-semibold text-sm ml-1.5">Payer</Text>
+						<Text className="text-green-600 font-semibold text-sm ml-1.5">
+							{status === "planned" ? "Marquer payé" : "Payer"}
+						</Text>
 					</TouchableOpacity>
 					<TouchableOpacity
 						onPress={() => onDelete(expense.id)}
@@ -116,6 +120,7 @@ export default function ScheduledExpensesScreen() {
 	const addScheduledExpenseStore = useStore((s) => s.addScheduledExpense);
 	const removeScheduledExpenseStore = useStore((s) => s.removeScheduledExpense);
 	const selectedMonth = useStore((s) => s.selectedMonth);
+	const setSelectedMonth = useStore((s) => s.setSelectedMonth);
 	const categories = useStore((s) => s.categories);
 	const prependTransaction = useStore((s) => s.prependTransaction);
 
@@ -132,6 +137,9 @@ export default function ScheduledExpensesScreen() {
 		return [y, m - 1]; // JS months are 0-indexed
 	}, [selectedMonth]);
 
+	const monthKey = selectedMonth || getCurrentMonth();
+	const isFutureMonthView = isFutureMonth(monthKey);
+	const isPastMonthView = monthKey < getCurrentMonth();
 	const today = new Date();
 	const isCurrentMonth =
 		today.getFullYear() === viewYear && today.getMonth() === viewMonth;
@@ -193,17 +201,23 @@ export default function ScheduledExpensesScreen() {
 		})();
 	}, [loadData]);
 
+	useEffect(() => {
+		setSelectedDay(null);
+	}, [selectedMonth]);
+
 	const handleRefresh = async () => {
 		setRefreshing(true);
 		await loadData();
 		setRefreshing(false);
 	};
 
-	// Statut d'une dépense
+	// Statut d'une dépense pour le mois affiché
 	const getStatus = (expense) => {
 		if (paidIds.has(expense.id)) return "paid";
+		if (isFutureMonthView) return "planned";
+		if (isPastMonthView) return "overdue";
 		if (expense.due_day === todayDay) return "today";
-		if (isCurrentMonth && expense.due_day < todayDay) return "overdue";
+		if (expense.due_day < todayDay) return "overdue";
 		return "upcoming";
 	};
 
@@ -213,7 +227,10 @@ export default function ScheduledExpensesScreen() {
 			const newTx = await markScheduledAsPaid(user.id, expense, selectedMonth);
 			prependTransaction(newTx);
 			setPaidIds((prev) => new Set([...prev, expense.id]));
-			Alert.alert("Payé ✓", `${expense.name} marqué comme payé pour ce mois.`);
+			Alert.alert(
+				"Payé ✓",
+				`${expense.name} marqué comme payé pour ${formatMonthLabel(selectedMonth).toLowerCase()}.`,
+			);
 		} catch (error) {
 			Alert.alert("Erreur", error.message || "Impossible de marquer comme payé.");
 		}
@@ -294,8 +311,18 @@ export default function ScheduledExpensesScreen() {
 				{/* En-tête */}
 				<View className="px-4 mb-4">
 					<Text className="text-gray-900 text-2xl font-bold">Dépenses fixes</Text>
-					<Text className="text-gray-400 text-sm mt-1">Planification et suivi mensuel</Text>
+					<Text className="text-gray-400 text-sm mt-1">
+						{isFutureMonthView
+							? "Préparez vos échéances à l'avance"
+							: "Planification et suivi mensuel"}
+					</Text>
 				</View>
+
+				<MonthSelector
+					selectedMonth={monthKey}
+					onMonthChange={setSelectedMonth}
+					className="mx-4 mb-4"
+				/>
 
 				{/* Carte stats */}
 				<LinearGradient
@@ -349,13 +376,6 @@ export default function ScheduledExpensesScreen() {
 					</View>
 				</LinearGradient>
 
-				{/* Mois affiché */}
-				<View className="mx-4 mt-5 mb-2">
-					<Text className="text-gray-600 font-semibold text-base">
-						📅 {formatMonthLabel(selectedMonth || getCurrentMonth())}
-					</Text>
-				</View>
-
 				{/* Calendrier */}
 				<View className="bg-white mx-4 rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
 					{/* Labels jours */}
@@ -377,7 +397,7 @@ export default function ScheduledExpensesScreen() {
 							const hasDue = dueDaysSet.has(day);
 							const isToday = day === todayDay;
 							const isSelected = selectedDay === day;
-							const isPast = isCurrentMonth && day < todayDay;
+							const isPast = isPastMonthView || (isCurrentMonth && day < todayDay);
 							const dotColor = dayColorMap[day] || "#6C5CE7";
 
 							return (
