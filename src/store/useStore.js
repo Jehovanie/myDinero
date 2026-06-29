@@ -10,79 +10,112 @@
  *  - Performant (re-renders uniquement sur les slices utilisés)
  *  - Compatible React Native sans configuration
  */
-import { create } from 'zustand';
-import { calculateTotal } from '../constants/categories';
+import { create } from "zustand";
+import { calculateTotal } from "../constants/categories";
 
 const useStore = create((set, get) => ({
-  // ─── AUTH ─────────────────────────────────────────────────
-  user: null,
-  session: null,
-  isLoading: true,
-  authError: null,
+	// ─── AUTH ─────────────────────────────────────────────────
+	user: null,
+	session: null,
+	isLoading: true,
+	authError: null,
 
-  setUser: (user) => set({ user }),
-  setSession: (session) => set({ session }),
-  setLoading: (isLoading) => set({ isLoading }),
-  setAuthError: (authError) => set({ authError }),
+	setUser: (user) => set({ user }),
+	setSession: (session) => set({ session }),
+	setLoading: (isLoading) => set({ isLoading }),
+	setAuthError: (authError) => set({ authError }),
 
-  resetAll: () =>
-    set({
-      user: null,
-      session: null,
-      isLoading: false,
-      authError: null,
-      transactions: [],
-      categories: [],
-      profile: null,
-    }),
+	resetAll: () =>
+		set({
+			user: null,
+			session: null,
+			isLoading: false,
+			authError: null,
+			transactions: [],
+			categories: [],
+			profile: null,
+			monthlyBudget: null,
+		}),
 
-  // ─── PROFIL ───────────────────────────────────────────────
-  profile: null,
-  setProfile: (profile) => set({ profile }),
+	// ─── PROFIL ───────────────────────────────────────────────
+	profile: null,
+	setProfile: (profile) => set({ profile }),
+	monthlyBudget: null,
+	setMonthlyBudget: (monthlyBudget) => set({ monthlyBudget }),
 
-  // ─── CATÉGORIES ───────────────────────────────────────────
-  categories: [],
-  setCategories: (categories) => set({ categories }),
+	// ─── CATÉGORIES ───────────────────────────────────────────
+	categories: [],
+	setCategories: (categories) => set({ categories }),
 
-  // ─── TRANSACTIONS ─────────────────────────────────────────
-  transactions: [],
-  setTransactions: (transactions) => set({ transactions }),
+	// ─── TRANSACTIONS ─────────────────────────────────────────
+	transactions: [],
+	setTransactions: (transactions) =>
+		set({
+			transactions: (transactions || [])
+				.map((tx) => get().normalizeTransaction(tx))
+				.sort((a, b) => new Date(b.date) - new Date(a.date)),
+		}),
 
-  prependTransaction: (tx) =>
-    set((state) => ({ transactions: [tx, ...state.transactions] })),
+	prependTransaction: (tx) =>
+		set((state) => ({
+			transactions: [get().normalizeTransaction(tx), ...state.transactions]
+				.map((item) => get().normalizeTransaction(item))
+				.sort((a, b) => new Date(b.date) - new Date(a.date)),
+		})),
 
-  removeTransaction: (id) =>
-    set((state) => ({
-      transactions: state.transactions.filter((t) => t.id !== id),
-    })),
+	removeTransaction: (id) =>
+		set((state) => ({
+			transactions: state.transactions.filter((t) => t.id !== id),
+		})),
 
-  // ─── SOLDES CALCULÉS (getters) ────────────────────────────
-  getBalance: () => {
-    const txs = get().transactions;
-    return calculateTotal(txs, 'income') - calculateTotal(txs, 'expense');
-  },
+	normalizeTransaction: (tx) => {
+		const normalizedType = tx?.type === "income" ? "income" : "expense";
+		return {
+			...tx,
+			type: normalizedType,
+			category: tx?.category || null,
+			amount: Number(tx?.amount) || 0,
+			date: tx?.date || new Date().toISOString(),
+		};
+	},
 
-  getMonthlyIncome: () => calculateTotal(get().transactions, 'income'),
+	// ─── SOLDES CALCULÉS (getters) ────────────────────────────
+	getBalance: () => {
+		const txs = get().transactions.map((tx) => get().normalizeTransaction(tx));
+		return calculateTotal(txs, "income") - calculateTotal(txs, "expense");
+	},
 
-  getMonthlyExpenses: () => calculateTotal(get().transactions, 'expense'),
+	getMonthlyIncome: () =>
+		calculateTotal(
+			get().transactions.map((tx) => get().normalizeTransaction(tx)),
+			"income",
+		),
 
-  getCategoryBreakdown: (type = 'expense') => {
-    const txs = get().transactions.filter((t) => t.type === type);
-    const breakdown = {};
+	getMonthlyExpenses: () =>
+		calculateTotal(
+			get().transactions.map((tx) => get().normalizeTransaction(tx)),
+			"expense",
+		),
 
-    txs.forEach((t) => {
-      const catName = t.category?.name || 'Sans catégorie';
-      const catColor = t.category?.color || '#999';
-      if (!breakdown[catName]) {
-        breakdown[catName] = { total: 0, color: catColor };
-      }
-      breakdown[catName].total += Number(t.amount);
-    });
+	getCategoryBreakdown: (type = "expense") => {
+		const txs = get()
+			.transactions.map((tx) => get().normalizeTransaction(tx))
+			.filter((t) => t.type === type);
+		const breakdown = {};
 
-    return Object.entries(breakdown)
-      .map(([name, data]) => ({ name, ...data }))
-      .sort((a, b) => b.total - a.total);
-  },
+		txs.forEach((t) => {
+			const catName = t.category?.name || "Sans catégorie";
+			const catColor = t.category?.color || "#999";
+			if (!breakdown[catName]) {
+				breakdown[catName] = { total: 0, color: catColor };
+			}
+			breakdown[catName].total += Number(t.amount);
+		});
+
+		return Object.entries(breakdown)
+			.map(([name, data]) => ({ name, ...data }))
+			.sort((a, b) => b.total - a.total);
+	},
 }));
 
 export default useStore;

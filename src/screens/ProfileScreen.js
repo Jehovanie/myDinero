@@ -17,6 +17,8 @@ export default function ProfileScreen({ navigation }) {
 	const user = useStore((s) => s.user);
 	const profile = useStore((s) => s.profile);
 	const setProfile = useStore((s) => s.setProfile);
+	const monthlyBudget = useStore((s) => s.monthlyBudget);
+	const setMonthlyBudget = useStore((s) => s.setMonthlyBudget);
 	const resetAll = useStore((s) => s.resetAll);
 	const transactions = useStore((s) => s.transactions);
 
@@ -31,6 +33,7 @@ export default function ProfileScreen({ navigation }) {
 			try {
 				const p = await getProfile(user.id);
 				setProfile(p);
+				setMonthlyBudget(p?.monthly_budget || 0);
 				setBudget(p?.monthly_budget?.toString() || "");
 			} catch (error) {
 				console.error("Erreur chargement profil :", error.message);
@@ -38,7 +41,7 @@ export default function ProfileScreen({ navigation }) {
 				setLoading(false);
 			}
 		})();
-	}, [user, setProfile]);
+	}, [user, setProfile, setMonthlyBudget]);
 
 	// Sauvegarder le budget mensuel
 	const handleSaveBudget = async () => {
@@ -50,11 +53,9 @@ export default function ProfileScreen({ navigation }) {
 
 		setSavingBudget(true);
 		try {
-			const updated = await updateProfile(user.id, {
-				monthly_budget: parsedBudget,
-			});
-			setProfile(updated);
-			Alert.alert("Succès", "Budget mensuel mis à jour.");
+			setMonthlyBudget(parsedBudget);
+			setProfile(profile ? { ...profile, monthly_budget: parsedBudget } : { monthly_budget: parsedBudget });
+			Alert.alert("Succès", "Budget mensuel enregistré localement pour cette session.");
 		} catch (error) {
 			Alert.alert("Erreur", "Impossible de mettre à jour le budget.");
 		} finally {
@@ -87,7 +88,7 @@ export default function ProfileScreen({ navigation }) {
 		.filter((t) => t.type === "expense")
 		.reduce((sum, t) => sum + Number(t.amount), 0);
 
-	const budgetValue = parseFloat(budget) || 0;
+	const budgetValue = parseFloat(budget) || monthlyBudget || 0;
 	const budgetPercentage = budgetValue > 0 ? Math.min(100, Math.round((totalExpenses / budgetValue) * 100)) : 0;
 
 	if (loading) {

@@ -1,180 +1,349 @@
 /**
  * Service Supabase – client unique et fonctions d'API.
  *
- * 🔐 Sécurité :
- *  - Toutes les requêtes passent par Row Level Security (RLS) côté Supabase.
- *  - Le token JWT est automatiquement attaché via le client Supabase.
- *  - Les mots de passe ne sont jamais stockés dans le store local.
+ * Adapté à la nouvelle architecture de la base :
+ *  - `users` (table liée à auth.users)
+ *  - `categorie_expenses` (catégories par utilisateur)
+ *  - `expenses` (transactions / dépenses)
+ *  - `incomes`, `savings`, `saving_goals` (à ajouter au besoin)
  *
- * 📦 Bonnes pratiques :
- *  - Un seul client partagé (singleton).
- *  - AsyncStorage pour persister la session entre les lancements.
+ * Le service expose des fonctions compatibles avec l'UI existante en effectuant
+ * des mappings (ex: `expense_id` → `id`, `created_at` → `date`).
  */
-import { createClient } from '@supabase/supabase-js';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createClient } from "@supabase/supabase-js";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { DEFAULT_CATEGORIES } from "../constants/categories";
 
-// ⚠️ Remplace ces valeurs par les tiennes depuis le dashboard Supabase
-//    (Settings > API > Project URL / anon public key)
-const SUPABASE_URL = 'https://jjynxcqqvnqliubfqvsj.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_MFySzvh9YgHHZlplgPizIQ_JbVYiMIO';
+const SUPABASE_URL = "https://dsiuunddjtbyquftozpn.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable__wcFTzvxeRWMasVMUTxRVw_ueDgKbf4";
 
-// Création du client Supabase avec persistance de session via AsyncStorage
-// Wrappé dans un try/catch pour éviter que l'app ne crash si la création
-// échoue (ex: erreur Hermes sur Android avec les propriétés URL getter-only)
 let _supabase = null;
 try {
-  _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    auth: {
-      storage: AsyncStorage,
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: false,
-    },
-  });
-  console.log('[supabase] Client créé avec succès');
+	_supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+		auth: {
+			storage: AsyncStorage,
+			autoRefreshToken: true,
+			persistSession: true,
+			detectSessionInUrl: false,
+		},
+	});
+	console.log("[supabase] Client créé avec succès");
 } catch (e) {
-  console.error('[supabase] Échec création client :', e.message);
-  // On exporte un client null : les fonctions d'API renverront des erreurs
-  // explicites au lieu de crasher.
+	console.error("[supabase] Échec création client :", e.message);
 }
 
 export const supabase = _supabase;
-
-/** Vérifie que le client Supabase est disponible */
 const requireClient = () => {
-  if (!_supabase) throw new Error('Client Supabase non initialisé. Vérifiez vos clés API.');
-  return _supabase;
+	if (!_supabase) throw new Error("Client Supabase non initialisé. Vérifiez vos clés API.");
+	return _supabase;
 };
 
-// ─── AUTHENTIFICATION ──────────────────────────────────────────────────────
-
-/** Inscription avec email + mot de passe + métadonnées (nom) */
+// ------------------ AUTH -------------------------------------------------
 export const signUp = async (email, password, name) => {
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: { name }, // stocké dans user_metadata
-    },
-  });
-  if (error) throw error;
-
-  // Crée automatiquement une entrée dans la table profiles via un trigger
-  // (ou on peut le faire ici manuellement)
-  if (data.user) {
-    await supabase.from('profiles').upsert({
-      id: data.user.id,
-      name,
-    });
-  }
-  return data;
+	const { data, error } = await supabase.auth.signUp({
+		email,
+		password,
+		options: { data: { nom: name } },
+	});
+	if (error) throw error;
+	// Le trigger SQL fourni crée déjà une ligne dans `public.users`.
+	return data;
 };
 
-/** Connexion avec email + mot de passe */
 export const signIn = async (email, password) => {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
-  if (error) throw error;
-  return data;
+	const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+	if (error) throw error;
+	return data;
 };
 
-/** Déconnexion */
 export const signOut = async () => {
-  const { error } = await supabase.auth.signOut();
-  if (error) throw error;
+	const { error } = await supabase.auth.signOut();
+	if (error) throw error;
 };
 
-/** Envoie un email de réinitialisation de mot de passe */
 export const resetPassword = async (email) => {
-  const { error } = await supabase.auth.resetPasswordForEmail(email);
-  if (error) throw error;
+	const { error } = await supabase.auth.resetPasswordForEmail(email);
+	if (error) throw error;
 };
 
-// ─── PROFIL ────────────────────────────────────────────────────────────────
-
-/** Récupère le profil de l'utilisateur connecté */
+// ------------------ PROFILE (table `users`) -------------------------------
 export const getProfile = async (userId) => {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', userId)
-    .single();
-  if (error) throw error;
-  return data;
+	const { data, error } = await supabase
+		.from("users")
+		.select("user_id, nom, email, created_at")
+		.eq("user_id", userId)
+		.single();
+	if (error) throw error;
+	// Mapper sur l'objet attendu par l'UI
+	return { id: data.user_id, name: data.nom, email: data.email, created_at: data.created_at };
 };
 
-/** Met à jour le profil (nom, budget mensuel...) */
 export const updateProfile = async (userId, updates) => {
-  const { data, error } = await supabase
-    .from('profiles')
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('id', userId)
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
+	const payload = {};
+	if (updates.name || updates.nom) payload.nom = updates.name || updates.nom;
+	if (updates.email) payload.email = updates.email;
+	const { data, error } = await supabase.from("users").update(payload).eq("user_id", userId).select().single();
+	if (error) throw error;
+	return { id: data.user_id, name: data.nom, email: data.email };
 };
 
-// ─── CATÉGORIES ────────────────────────────────────────────────────────────
+// ------------------ CATÉGORIES (table `categorie_expenses`) --------------
+export const ensureCategory = async (userId, category) => {
+	const normalizedName = category?.name?.trim();
+	if (!userId || !normalizedName) return null;
 
-/** Récupère toutes les catégories (visibles par tout utilisateur authentifié) */
+	const { data: existing, error: existingError } = await supabase
+		.from("categorie_expenses")
+		.select("categorie_expense_id, name")
+		.eq("user_id", userId)
+		.ilike("name", normalizedName)
+		.maybeSingle();
+	if (existingError) throw existingError;
+	if (existing) return existing;
+
+	const { data, error } = await supabase
+		.from("categorie_expenses")
+		.insert({
+			user_id: userId,
+			name: normalizedName,
+			target_monthly_budget: 0,
+		})
+		.select("categorie_expense_id, name")
+		.single();
+	if (error) throw error;
+	return data;
+};
+
 export const getCategories = async () => {
-  const { data, error } = await supabase
-    .from('categories')
-    .select('*')
-    .order('name');
-  if (error) throw error;
-  return data;
+	// Récupère l'utilisateur courant via l'auth (RLS autorise la lecture)
+	const user = (await supabase.auth.getUser()).data?.user;
+	const q = supabase.from("categorie_expenses").select("*").order("name");
+	if (user) q.eq("user_id", user.id);
+	const { data, error } = await q;
+	if (error) throw error;
+
+	// Si l'utilisateur n'a pas encore de catégories en base, retourner les defaults
+	if (!data || data.length === 0) {
+		const defaults = [];
+		DEFAULT_CATEGORIES.income.forEach((d) =>
+			defaults.push({
+				id: null,
+				name: d.name,
+				type: "income",
+				icon: d.icon,
+				color: d.color,
+				target_monthly_budget: 0,
+			}),
+		);
+		DEFAULT_CATEGORIES.expense.forEach((d) =>
+			defaults.push({
+				id: null,
+				name: d.name,
+				type: "expense",
+				icon: d.icon,
+				color: d.color,
+				target_monthly_budget: 0,
+			}),
+		);
+		return defaults;
+	}
+
+	// On merge avec DEFAULT_CATEGORIES pour ajouter couleurs/icônes et type
+	const merged = data.map((c) => {
+		const name = c.name;
+		const findDefault = (arr) => arr.find((d) => d.name === name || d.name?.toLowerCase() === name?.toLowerCase());
+		const defIncome = findDefault(DEFAULT_CATEGORIES.income);
+		const defExpense = findDefault(DEFAULT_CATEGORIES.expense);
+		const def = defIncome || defExpense || {};
+		const inferredType = defIncome ? "income" : defExpense ? "expense" : "expense";
+
+		return {
+			id: c.categorie_expense_id,
+			name: c.name,
+			type: inferredType,
+			target_monthly_budget: c.target_monthly_budget,
+			created_at: c.created_at,
+			icon: def.icon || null,
+			color: def.color || "#999",
+		};
+	});
+
+	return merged;
 };
 
-// ─── TRANSACTIONS ──────────────────────────────────────────────────────────
-
-/** Récupère les transactions de l'utilisateur (optionnellement filtrées par mois) */
+// ------------------ TRANSACTIONS / EXPENSES / INCOMES -------------------
 export const getTransactions = async (userId, monthFilter = null) => {
-  let query = supabase
-    .from('transactions')
-    .select('*, category:categories(*)')
-    .eq('user_id', userId)
-    .order('date', { ascending: false })
-    .order('created_at', { ascending: false });
+	let incomeQuery = supabase
+		.from("incomes")
+		.select("*")
+		.eq("user_id", userId)
+		.order("created_at", { ascending: false });
+	let expenseQuery = supabase
+		.from("expenses")
+		.select("*, categorie:categorie_expenses(*)")
+		.eq("user_id", userId)
+		.order("created_at", { ascending: false });
 
-  // Filtre par mois si fourni (format 'YYYY-MM')
-  if (monthFilter) {
-    query = query
-      .gte('date', `${monthFilter}-01`)
-      .lt('date', `${monthFilter}-31`);
-  }
+	if (monthFilter) {
+		const startDate = `${monthFilter}-01`;
+		const nextMonth = new Date(`${monthFilter}-01T00:00:00`);
+		nextMonth.setMonth(nextMonth.getMonth() + 1);
+		const endDate = nextMonth.toISOString().slice(0, 10);
+		incomeQuery = incomeQuery.gte("created_at", startDate).lt("created_at", endDate);
+		expenseQuery = expenseQuery.gte("created_at", startDate).lt("created_at", endDate);
+	}
 
-  const { data, error } = await query;
-  if (error) throw error;
-  return data;
+	const [{ data: incomesData, error: incomesError }, { data: expensesData, error: expensesError }] =
+		await Promise.all([incomeQuery, expenseQuery]);
+	if (incomesError) throw incomesError;
+	if (expensesError) throw expensesError;
+
+	const mappedIncomes = (incomesData || []).map((item) => ({
+		id: item.income_id,
+		user_id: item.user_id,
+		amount: item.amount,
+		description: item.description,
+		type: "income",
+		date: item.created_at,
+		category: { id: null, name: item.source || "Revenu", icon: "cash-outline", color: "#4CAF50" },
+	}));
+
+	const mappedExpenses = (expensesData || []).map((item) => ({
+		id: item.expense_id,
+		user_id: item.user_id,
+		amount: item.amount,
+		description: item.description,
+		type: "expense",
+		date: item.created_at,
+		category: item.categorie
+			? {
+					id: item.categorie.categorie_expense_id,
+					name: item.categorie.name,
+					icon: null,
+					color: "#EF4444",
+				}
+			: null,
+	}));
+
+	return [...mappedIncomes, ...mappedExpenses].sort((a, b) => new Date(b.date) - new Date(a.date));
 };
 
-/** Ajoute une transaction */
 export const addTransaction = async (userId, transaction) => {
-  const { data, error } = await supabase
-    .from('transactions')
-    .insert({
-      user_id: userId,
-      category_id: transaction.category_id,
-      amount: transaction.amount,
-      description: transaction.description || '',
-      type: transaction.type,
-      date: transaction.date || new Date().toISOString().split('T')[0],
-    })
-    .select('*, category:categories(*)')
-    .single();
-  if (error) throw error;
-  return data;
+	if (transaction.type === "income") {
+		const payload = {
+			user_id: userId,
+			source: transaction.category?.name || transaction.source || "Autre revenu",
+			description: transaction.description || "",
+			amount: transaction.amount,
+		};
+		if (transaction.date) payload.created_at = transaction.date;
+
+		const { data, error } = await supabase.from("incomes").insert(payload).select("*").single();
+		if (error) throw error;
+		return {
+			id: data.income_id,
+			user_id: data.user_id,
+			amount: data.amount,
+			description: data.description,
+			type: "income",
+			date: data.created_at,
+			category: { id: null, name: data.source || "Revenu", icon: "cash-outline", color: "#4CAF50" },
+		};
+	}
+
+	let categoryId = transaction.category_id || transaction.category?.id || null;
+	if (!categoryId && transaction.category?.name) {
+		const createdCategory = await ensureCategory(userId, transaction.category);
+		categoryId = createdCategory?.categorie_expense_id || null;
+	}
+
+	const payload = {
+		user_id: userId,
+		categorie_expense_id: categoryId,
+		amount: transaction.amount,
+		description: transaction.description || "",
+		type: transaction.expenseType || "variable",
+	};
+	if (transaction.date) payload.created_at = transaction.date;
+
+	const { data, error } = await supabase
+		.from("expenses")
+		.insert(payload)
+		.select("*, categorie:categorie_expenses(*)")
+		.single();
+	if (error) throw error;
+
+	return {
+		id: data.expense_id,
+		user_id: data.user_id,
+		amount: data.amount,
+		description: data.description,
+		type: "expense",
+		date: data.created_at,
+		category: data.categorie
+			? {
+					id: data.categorie.categorie_expense_id,
+					name: data.categorie.name,
+					icon: null,
+					color: "#EF4444",
+				}
+			: null,
+	};
 };
 
-/** Supprime une transaction */
-export const deleteTransaction = async (transactionId) => {
-  const { error } = await supabase
-    .from('transactions')
-    .delete()
-    .eq('id', transactionId);
-  if (error) throw error;
+export const deleteTransaction = async (transactionId, type = null) => {
+	if (type === "income") {
+		const { error } = await supabase.from("incomes").delete().eq("income_id", transactionId);
+		if (error) throw error;
+		return;
+	}
+	if (type === "expense") {
+		const { error } = await supabase.from("expenses").delete().eq("expense_id", transactionId);
+		if (error) throw error;
+		return;
+	}
+
+	const { error: incomeError } = await supabase.from("incomes").delete().eq("income_id", transactionId);
+	if (!incomeError) return;
+
+	const { error: expenseError } = await supabase.from("expenses").delete().eq("expense_id", transactionId);
+	if (expenseError) throw expenseError;
+};
+
+export const addIncome = async (userId, income) => {
+	const payload = {
+		user_id: userId,
+		source: income.source || "Autre revenu",
+		description: income.description || "",
+		amount: income.amount,
+	};
+	if (income.date) payload.created_at = income.date;
+
+	const { data, error } = await supabase.from("incomes").insert(payload).select("*").single();
+	if (error) throw error;
+	return data;
+};
+
+export const addSavingGoal = async (userId, goal) => {
+	const payload = {
+		user_id: userId,
+		nom: goal.nom || "Nouvel objectif",
+		target_amount: goal.target_amount,
+		target_date: goal.target_date || null,
+	};
+	const { data, error } = await supabase.from("saving_goals").insert(payload).select("*").single();
+	if (error) throw error;
+	return data;
+};
+
+export const addSaving = async (userId, saving) => {
+	const payload = {
+		user_id: userId,
+		amount: saving.amount,
+		saving_goal_id: saving.saving_goal_id || null,
+	};
+	if (saving.date) payload.created_at = saving.date;
+	const { data, error } = await supabase.from("savings").insert(payload).select("*").single();
+	if (error) throw error;
+	return data;
 };

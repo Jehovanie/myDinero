@@ -24,6 +24,7 @@ import { Ionicons } from "@expo/vector-icons";
 import useStore from "../store/useStore";
 import { addTransaction } from "../services/supabase";
 import CategoryPicker from "../components/CategoryPicker";
+import { DEFAULT_CATEGORIES } from "../constants/categories";
 
 export default function AddTransactionScreen({ navigation }) {
 	const user = useStore((s) => s.user);
@@ -36,8 +37,29 @@ export default function AddTransactionScreen({ navigation }) {
 	const [description, setDescription] = useState("");
 	const [loading, setLoading] = useState(false);
 
-	// Filtrer les catégories selon le type sélectionné
-	const filteredCategories = useMemo(() => categories.filter((c) => c.type === type), [categories, type]);
+	// Filtrer les catégories selon le type sélectionné, avec fallback sur les catégories par défaut
+	const filteredCategories = useMemo(() => {
+		const typedCategories = categories.filter((c) => c.type === type);
+		const defaultCategories = (DEFAULT_CATEGORIES[type] || []).map((cat) => ({
+			...cat,
+			id: cat.id ?? `${cat.name}-${type}`,
+			type,
+		}));
+
+		const merged = [...typedCategories];
+		defaultCategories.forEach((defaultCat) => {
+			if (!merged.some((cat) => cat.name === defaultCat.name)) {
+				merged.push(defaultCat);
+			}
+		});
+
+		return merged;
+	}, [categories, type]);
+
+	const selectedCategory = useMemo(() => {
+		if (!categoryId) return null;
+		return filteredCategories.find((c) => (c.id ?? `${c.name}-${c.type}`) === categoryId) || null;
+	}, [categoryId, filteredCategories]);
 
 	// Réinitialiser la catégorie quand on change de type
 	const handleTypeChange = (newType) => {
@@ -46,13 +68,17 @@ export default function AddTransactionScreen({ navigation }) {
 	};
 
 	const handleSubmit = async () => {
-		// Validation
+		if (!user?.id) {
+			Alert.alert("Erreur", "Veuillez vous reconnecter pour ajouter une transaction.");
+			return;
+		}
+
 		const parsedAmount = parseFloat(amount.replace(",", "."));
 		if (!amount || isNaN(parsedAmount) || parsedAmount <= 0) {
 			Alert.alert("Erreur", "Veuillez entrer un montant valide (supérieur à 0).");
 			return;
 		}
-		if (!categoryId) {
+		if (type === "expense" && !selectedCategory) {
 			Alert.alert("Erreur", "Veuillez sélectionner une catégorie.");
 			return;
 		}
@@ -61,10 +87,19 @@ export default function AddTransactionScreen({ navigation }) {
 		try {
 			const newTx = await addTransaction(user.id, {
 				type,
-				category_id: categoryId,
+				category_id: selectedCategory?.id || null,
+				category: selectedCategory
+					? {
+							id: selectedCategory?.id || null,
+							name: selectedCategory.name,
+							icon: selectedCategory.icon,
+							color: selectedCategory.color,
+						}
+					: null,
+				source: type === "income" ? description.trim() || "Autre revenu" : undefined,
 				amount: parsedAmount,
 				description: description.trim(),
-				date: new Date().toISOString().split("T")[0],
+				date: new Date().toISOString(),
 			});
 			prependTransaction(newTx);
 
@@ -127,7 +162,11 @@ export default function AddTransactionScreen({ navigation }) {
 					{filteredCategories.length > 0 ? (
 						<CategoryPicker
 							categories={filteredCategories}
-							selectedId={categoryId}
+							selectedId={
+								selectedCategory
+									? (selectedCategory.id ?? `${selectedCategory.name}-${selectedCategory.type}`)
+									: null
+							}
 							onSelect={setCategoryId}
 						/>
 					) : (

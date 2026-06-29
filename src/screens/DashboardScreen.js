@@ -124,6 +124,11 @@ export default function DashboardScreen({ navigation }) {
 
 				{/* ── Transactions récentes ───────────────────── */}
 				<View className="mt-4 pb-4">
+					<View className="px-4 mb-2">
+						<Text className="text-gray-500 text-xs">
+							Les revenus et dépenses sont maintenant chargés depuis la nouvelle structure Supabase.
+						</Text>
+					</View>
 					<View className="flex-row items-center justify-between px-4 mb-3">
 						<Text className="text-gray-800 font-semibold text-lg">Transactions récentes</Text>
 						{transactions.length > 10 && (
@@ -145,8 +150,9 @@ export default function DashboardScreen({ navigation }) {
 								key={tx.id}
 								transaction={tx}
 								onDelete={(id) => {
+									const selectedTx = transactions.find((item) => item.id === id);
 									removeTransaction(id);
-									deleteTransaction(id).catch(console.error);
+									deleteTransaction(id, selectedTx?.type).catch(console.error);
 								}}
 							/>
 						))
