@@ -66,6 +66,15 @@ export const resetPassword = async (email) => {
 	if (error) throw error;
 };
 
+/** Met à jour le mot de passe de l'utilisateur connecté */
+export const changePassword = async (newPassword) => {
+	if (!newPassword || newPassword.length < 6) {
+		throw new Error("Le mot de passe doit contenir au moins 6 caractères.");
+	}
+	const { error } = await supabase.auth.updateUser({ password: newPassword });
+	if (error) throw error;
+};
+
 // ------------------ PROFILE (table `users`) -------------------------------
 export const getProfile = async (userId) => {
 	const { data, error } = await supabase

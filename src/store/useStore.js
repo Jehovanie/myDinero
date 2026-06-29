@@ -34,7 +34,6 @@ const useStore = create((set, get) => ({
 			transactions: [],
 			categories: [],
 			profile: null,
-			monthlyBudget: null,
 			selectedMonth: getCurrentMonth(),
 			savings: [],
 			totalSavings: 0,
@@ -50,8 +49,6 @@ const useStore = create((set, get) => ({
 	// ─── PROFIL ───────────────────────────────────────────────
 	profile: null,
 	setProfile: (profile) => set({ profile }),
-	monthlyBudget: null,
-	setMonthlyBudget: (monthlyBudget) => set({ monthlyBudget }),
 
 	// ─── CATÉGORIES ───────────────────────────────────────────
 	categories: [],

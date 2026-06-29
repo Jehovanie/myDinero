@@ -64,7 +64,7 @@ export default function LoginScreen({ navigation }) {
         keyboardShouldPersistTaps="handled"
       >
         {/* En-tête décoratif */}
-        <View className="bg-primary h-52 rounded-b-[40px] items-center justify-end pb-8">
+        <View className="bg-primary h-56 rounded-b-[40px] items-center justify-end pb-8">
           <Ionicons name="wallet-outline" size={48} color="#FFF" />
           <Text className="text-white text-2xl font-bold mt-2">myDinero</Text>
           <Text className="text-primary-light text-sm">Votre budget, simplifié</Text>
