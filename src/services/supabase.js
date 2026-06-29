@@ -14,8 +14,8 @@ import { createClient } from "@supabase/supabase-js";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { DEFAULT_CATEGORIES, getCurrentMonth, monthToDate, dateToMonth } from "../constants/categories";
 
-const SUPABASE_URL = "https://dsiuunddjtbyquftozpn.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable__wcFTzvxeRWMasVMUTxRVw_ueDgKbf4";
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
 let _supabase = null;
 try {
