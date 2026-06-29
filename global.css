@@ -1,0 +1,11 @@
+/* Styles globaux NativeWind / TailwindCSS */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Styles de base personnalisés */
+@layer base {
+  body {
+    @apply bg-surface-light text-gray-900;
+  }
+}
