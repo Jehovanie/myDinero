@@ -7,6 +7,8 @@
  *  3. Rendu du navigateur principal
  */
 
+import "react-native-url-polyfill/auto";
+
 // ⚠️ Patch URL Hermes – corrige les propriétés readonly sur Android
 import './src/services/urlPatch';
 
