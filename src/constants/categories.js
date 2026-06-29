@@ -39,3 +39,40 @@ export const formatCurrency = (amount) => {
 export const calculateTotal = (transactions, type) => {
 	return transactions.filter((t) => t.type === type).reduce((sum, t) => sum + Number(t.amount), 0);
 };
+
+/** Retourne le mois courant au format YYYY-MM */
+export const getCurrentMonth = () => {
+	const now = new Date();
+	return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+};
+
+/** Convertit YYYY-MM en date SQL (1er jour du mois) */
+export const monthToDate = (monthKey) => `${monthKey}-01`;
+
+/** Extrait YYYY-MM depuis une date ISO ou une colonne date */
+export const dateToMonth = (value) => {
+	if (!value) return getCurrentMonth();
+	const str = String(value);
+	if (/^\d{4}-\d{2}/.test(str)) return str.slice(0, 7);
+	const date = new Date(str);
+	if (Number.isNaN(date.getTime())) return getCurrentMonth();
+	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+};
+
+/** Affiche un mois en français (ex. "juin 2025") */
+export const formatMonthLabel = (monthKey) => {
+	const [year, month] = monthKey.split("-").map(Number);
+	const date = new Date(year, month - 1, 1);
+	const label = date.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+	return label.charAt(0).toUpperCase() + label.slice(1);
+};
+
+/** Décale un mois de delta positions (ex. -1 = mois précédent) */
+export const shiftMonth = (monthKey, delta) => {
+	const [year, month] = monthKey.split("-").map(Number);
+	const date = new Date(year, month - 1 + delta, 1);
+	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+};
+
+/** true si monthKey est strictement après le mois courant */
+export const isFutureMonth = (monthKey) => monthKey > getCurrentMonth();

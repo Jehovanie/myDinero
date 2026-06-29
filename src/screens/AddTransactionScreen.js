@@ -8,7 +8,7 @@
  *  - Description (optionnelle)
  *  - Date (par défaut aujourd'hui)
  */
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
 	View,
 	Text,
@@ -21,21 +21,31 @@ import {
 	Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import useStore from "../store/useStore";
 import { addTransaction } from "../services/supabase";
 import CategoryPicker from "../components/CategoryPicker";
-import { DEFAULT_CATEGORIES } from "../constants/categories";
+import MonthSelector from "../components/MonthSelector";
+import { DEFAULT_CATEGORIES, getCurrentMonth } from "../constants/categories";
 
 export default function AddTransactionScreen({ navigation }) {
 	const user = useStore((s) => s.user);
 	const categories = useStore((s) => s.categories);
 	const prependTransaction = useStore((s) => s.prependTransaction);
+	const selectedMonth = useStore((s) => s.selectedMonth);
 
 	const [type, setType] = useState("expense");
 	const [categoryId, setCategoryId] = useState(null);
 	const [amount, setAmount] = useState("");
 	const [description, setDescription] = useState("");
+	const [transactionMonth, setTransactionMonth] = useState(selectedMonth || getCurrentMonth());
 	const [loading, setLoading] = useState(false);
+
+	useFocusEffect(
+		useCallback(() => {
+			setTransactionMonth(selectedMonth || getCurrentMonth());
+		}, [selectedMonth]),
+	);
 
 	// Filtrer les catégories selon le type sélectionné, avec fallback sur les catégories par défaut
 	const filteredCategories = useMemo(() => {
@@ -105,9 +115,12 @@ export default function AddTransactionScreen({ navigation }) {
 				source: type === "income" ? description.trim() || "Autre revenu" : undefined,
 				amount: parsedAmount,
 				description: description.trim(),
+				month: transactionMonth,
 				date: new Date().toISOString(),
 			});
-			prependTransaction(newTx);
+			if (transactionMonth === selectedMonth) {
+				prependTransaction(newTx);
+			}
 			resetForm();
 
 			Alert.alert("Succès", "Transaction ajoutée avec succès !", [
@@ -197,9 +210,15 @@ export default function AddTransactionScreen({ navigation }) {
 					</View>
 				</View>
 
-				{/* ── Date ────────────────────────────────────── */}
+				{/* ── Mois concerné ───────────────────────────── */}
 				<View className="mx-4 mt-6">
-					<Text className="text-gray-600 text-sm mb-1.5 ml-1">Date</Text>
+					<Text className="text-gray-600 text-sm mb-2 ml-1">Mois concerné</Text>
+					<MonthSelector selectedMonth={transactionMonth} onMonthChange={setTransactionMonth} />
+				</View>
+
+				{/* ── Date d'enregistrement ───────────────────── */}
+				<View className="mx-4 mt-6">
+					<Text className="text-gray-600 text-sm mb-1.5 ml-1">Date d'enregistrement</Text>
 					<View className="flex-row items-center bg-white rounded-2xl border border-gray-200 px-4 h-12">
 						<Ionicons name="calendar-outline" size={18} color="#999" />
 						<Text className="ml-2 text-gray-800">

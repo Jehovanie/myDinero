@@ -11,7 +11,7 @@ import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator,
 import { Ionicons } from "@expo/vector-icons";
 import useStore from "../store/useStore";
 import { getProfile, updateProfile, signOut } from "../services/supabase";
-import { formatCurrency } from "../constants/categories";
+import { formatCurrency, formatMonthLabel } from "../constants/categories";
 
 export default function ProfileScreen({ navigation }) {
 	const user = useStore((s) => s.user);
@@ -21,6 +21,7 @@ export default function ProfileScreen({ navigation }) {
 	const setMonthlyBudget = useStore((s) => s.setMonthlyBudget);
 	const resetAll = useStore((s) => s.resetAll);
 	const transactions = useStore((s) => s.transactions);
+	const selectedMonth = useStore((s) => s.selectedMonth);
 
 	const [loading, setLoading] = useState(true);
 	const [budget, setBudget] = useState("");
@@ -122,7 +123,7 @@ export default function ProfileScreen({ navigation }) {
 				<View className="flex-1 bg-white mx-1 rounded-2xl p-4 items-center shadow-sm border border-gray-100">
 					<Ionicons name="trending-down-outline" size={22} color="#E17055" />
 					<Text className="text-gray-800 text-lg font-bold mt-1">{formatCurrency(totalExpenses)}</Text>
-					<Text className="text-gray-400 text-xs">dépenses ce mois</Text>
+					<Text className="text-gray-400 text-xs">dépenses — {formatMonthLabel(selectedMonth)}</Text>
 				</View>
 			</View>
 

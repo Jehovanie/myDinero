@@ -11,7 +11,7 @@
  *  - Compatible React Native sans configuration
  */
 import { create } from "zustand";
-import { calculateTotal } from "../constants/categories";
+import { calculateTotal, getCurrentMonth } from "../constants/categories";
 
 const useStore = create((set, get) => ({
 	// ─── AUTH ─────────────────────────────────────────────────
@@ -35,7 +35,15 @@ const useStore = create((set, get) => ({
 			categories: [],
 			profile: null,
 			monthlyBudget: null,
+			selectedMonth: getCurrentMonth(),
+			savings: [],
+			totalSavings: 0,
+			monthlySummary: { income: 0, expense: 0, balance: 0, saved: 0, available: 0 },
 		}),
+
+	// ─── MOIS SÉLECTIONNÉ ─────────────────────────────────────
+	selectedMonth: getCurrentMonth(),
+	setSelectedMonth: (selectedMonth) => set({ selectedMonth }),
 
 	// ─── PROFIL ───────────────────────────────────────────────
 	profile: null,
@@ -76,8 +84,37 @@ const useStore = create((set, get) => ({
 			category: tx?.category || null,
 			amount: Number(tx?.amount) || 0,
 			date: tx?.date || new Date().toISOString(),
+			month: tx?.month || getCurrentMonth(),
 		};
 	},
+
+	// ─── ÉPARGNE ──────────────────────────────────────────────
+	savings: [],
+	totalSavings: 0,
+	monthlySummary: { income: 0, expense: 0, balance: 0, saved: 0, available: 0 },
+
+	setSavingsData: ({ savings, totalSavings, monthlySummary }) =>
+		set({
+			savings: savings || [],
+			totalSavings: Number(totalSavings) || 0,
+			monthlySummary: monthlySummary || get().monthlySummary,
+		}),
+
+	setTotalSavings: (totalSavings) => set({ totalSavings: Number(totalSavings) || 0 }),
+
+	prependSaving: (saving, monthlySummary, totalSavings) =>
+		set((state) => ({
+			savings: [saving, ...state.savings],
+			totalSavings: totalSavings ?? state.totalSavings + Number(saving.amount),
+			monthlySummary: monthlySummary ?? state.monthlySummary,
+		})),
+
+	removeSaving: (id, monthlySummary, totalSavings) =>
+		set((state) => ({
+			savings: state.savings.filter((s) => s.id !== id),
+			totalSavings: totalSavings ?? state.totalSavings,
+			monthlySummary: monthlySummary ?? state.monthlySummary,
+		})),
 
 	// ─── SOLDES CALCULÉS (getters) ────────────────────────────
 	getBalance: () => {

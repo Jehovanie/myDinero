@@ -48,10 +48,13 @@ create table if not exists public.incomes (
   source text not null,
   description text,
   amount numeric(12,2) not null check (amount > 0),
-  created_at timestamptz not null default now()
+  transaction_month date not null default (date_trunc('month', now())::date),
+  created_at timestamptz not null default now(),
+  check (transaction_month = date_trunc('month', transaction_month)::date)
 );
 
 create index if not exists idx_incomes_user_id on public.incomes(user_id);
+create index if not exists idx_incomes_transaction_month on public.incomes(user_id, transaction_month);
 
 -- ============================================================================
 -- 3. CATEGORIE_EXPENSES — catégories de dépenses + budget cible mensuel
@@ -95,11 +98,14 @@ create table if not exists public.expenses (
   type text not null check (type in ('fix', 'variable')),
   description text,
   amount numeric(12,2) not null check (amount > 0),
-  created_at timestamptz not null default now()
+  transaction_month date not null default (date_trunc('month', now())::date),
+  created_at timestamptz not null default now(),
+  check (transaction_month = date_trunc('month', transaction_month)::date)
 );
 
 create index if not exists idx_expenses_user_id on public.expenses(user_id);
 create index if not exists idx_expenses_categorie_id on public.expenses(categorie_expense_id);
+create index if not exists idx_expenses_transaction_month on public.expenses(user_id, transaction_month);
 
 -- ============================================================================
 -- 6. SAVINGS — versements d'épargne (liés ou non à un objectif)
@@ -110,11 +116,15 @@ create table if not exists public.savings (
   user_id uuid not null references public.users(user_id) on delete cascade,
   amount numeric(12,2) not null check (amount > 0),
   saving_goal_id uuid references public.saving_goals(saving_goal_id) on delete set null,
-  created_at timestamptz not null default now()
+  transaction_month date not null default (date_trunc('month', now())::date),
+  description text,
+  created_at timestamptz not null default now(),
+  check (transaction_month = date_trunc('month', transaction_month)::date)
 );
 
 create index if not exists idx_savings_user_id on public.savings(user_id);
 create index if not exists idx_savings_goal_id on public.savings(saving_goal_id);
+create index if not exists idx_savings_transaction_month on public.savings(user_id, transaction_month);
 
 -- ============================================================================
 -- 7. ROW LEVEL SECURITY — chacun ne voit / modifie que ses propres données
@@ -165,7 +175,7 @@ select
   ce.user_id,
   ce.name as category_name,
   ce.target_monthly_budget,
-  date_trunc('month', e.created_at)::date as month,
+  coalesce(e.transaction_month, date_trunc('month', e.created_at)::date) as month,
   coalesce(sum(e.amount), 0) as spent_amount,
   ce.target_monthly_budget - coalesce(sum(e.amount), 0) as remaining_amount
 from public.categorie_expenses ce
@@ -173,7 +183,7 @@ left join public.expenses e
   on e.categorie_expense_id = ce.categorie_expense_id
   and e.user_id = ce.user_id
 group by ce.categorie_expense_id, ce.user_id, ce.name, ce.target_monthly_budget,
-         date_trunc('month', e.created_at);
+         coalesce(e.transaction_month, date_trunc('month', e.created_at)::date);
 
 -- Progression de chaque objectif d'épargne
 create or replace view public.saving_goals_progress
@@ -315,6 +325,172 @@ begin
   end loop;
 end;
 $$;
+
+-- ============================================================================
+-- MIGRATION — Liaison revenus / dépenses à un mois (transaction_month)
+-- ============================================================================
+-- Chaque revenu et chaque dépense est rattaché au 1er jour du mois concerné
+-- (ex. 2025-06-01 pour juin 2025). Permet le filtrage et l'historique mensuel.
+
+alter table public.incomes
+  add column if not exists transaction_month date;
+
+alter table public.expenses
+  add column if not exists transaction_month date;
+
+update public.incomes
+set transaction_month = date_trunc('month', created_at)::date
+where transaction_month is null;
+
+update public.expenses
+set transaction_month = date_trunc('month', created_at)::date
+where transaction_month is null;
+
+alter table public.incomes
+  alter column transaction_month set default (date_trunc('month', now())::date),
+  alter column transaction_month set not null;
+
+alter table public.expenses
+  alter column transaction_month set default (date_trunc('month', now())::date),
+  alter column transaction_month set not null;
+
+alter table public.incomes
+  drop constraint if exists incomes_transaction_month_first_day;
+alter table public.incomes
+  add constraint incomes_transaction_month_first_day
+  check (transaction_month = date_trunc('month', transaction_month)::date);
+
+alter table public.expenses
+  drop constraint if exists expenses_transaction_month_first_day;
+alter table public.expenses
+  add constraint expenses_transaction_month_first_day
+  check (transaction_month = date_trunc('month', transaction_month)::date);
+
+create index if not exists idx_incomes_transaction_month
+  on public.incomes(user_id, transaction_month);
+create index if not exists idx_expenses_transaction_month
+  on public.expenses(user_id, transaction_month);
+
+create or replace view public.expense_budget_vs_actual
+  with (security_invoker = true) as
+select
+  ce.categorie_expense_id,
+  ce.user_id,
+  ce.name as category_name,
+  ce.target_monthly_budget,
+  e.transaction_month as month,
+  coalesce(sum(e.amount), 0) as spent_amount,
+  ce.target_monthly_budget - coalesce(sum(e.amount), 0) as remaining_amount
+from public.categorie_expenses ce
+left join public.expenses e
+  on e.categorie_expense_id = ce.categorie_expense_id
+  and e.user_id = ce.user_id
+group by ce.categorie_expense_id, ce.user_id, ce.name, ce.target_monthly_budget,
+         e.transaction_month;
+
+-- ============================================================================
+-- MIGRATION — Épargne cumulative liée au mois + validation du solde
+-- ============================================================================
+-- Chaque versement d'épargne est rattaché à un mois. Le cumul de tous les
+-- versements = épargne totale. Un versement ne peut pas dépasser le solde
+-- mensuel restant (revenus - dépenses - déjà épargné ce mois-là).
+
+alter table public.savings
+  add column if not exists transaction_month date,
+  add column if not exists description text;
+
+update public.savings
+set transaction_month = date_trunc('month', created_at)::date
+where transaction_month is null;
+
+alter table public.savings
+  alter column transaction_month set default (date_trunc('month', now())::date),
+  alter column transaction_month set not null;
+
+alter table public.savings
+  drop constraint if exists savings_transaction_month_first_day;
+alter table public.savings
+  add constraint savings_transaction_month_first_day
+  check (transaction_month = date_trunc('month', transaction_month)::date);
+
+create index if not exists idx_savings_transaction_month
+  on public.savings(user_id, transaction_month);
+
+-- Solde mensuel = revenus - dépenses pour un mois donné
+create or replace function public.get_monthly_balance(p_user_id uuid, p_month date)
+returns numeric
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    coalesce((
+      select sum(amount) from public.incomes
+      where user_id = p_user_id and transaction_month = p_month
+    ), 0)
+    - coalesce((
+      select sum(amount) from public.expenses
+      where user_id = p_user_id and transaction_month = p_month
+    ), 0);
+$$;
+
+-- Total déjà épargné sur un mois (hors ligne en cours d'insertion)
+create or replace function public.get_monthly_saved(p_user_id uuid, p_month date)
+returns numeric
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(sum(amount), 0)
+  from public.savings
+  where user_id = p_user_id and transaction_month = p_month;
+$$;
+
+-- Vérifie qu'un versement ne dépasse pas le solde disponible du mois
+create or replace function public.check_saving_amount()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_balance numeric;
+  v_saved numeric;
+  v_available numeric;
+begin
+  v_balance := public.get_monthly_balance(new.user_id, new.transaction_month);
+  v_saved := public.get_monthly_saved(new.user_id, new.transaction_month);
+
+  if v_balance <= 0 then
+    raise exception 'Solde mensuel insuffisant pour épargner (solde : %)', v_balance;
+  end if;
+
+  v_available := v_balance - v_saved;
+
+  if new.amount > v_available then
+    raise exception 'Montant supérieur au solde disponible (max : %)', v_available;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists savings_check_amount on public.savings;
+create trigger savings_check_amount
+  before insert on public.savings
+  for each row execute function public.check_saving_amount();
+
+-- Vue : épargne cumulée par utilisateur
+create or replace view public.savings_total
+  with (security_invoker = true) as
+select
+  user_id,
+  coalesce(sum(amount), 0) as total_saved,
+  count(*) as transfer_count
+from public.savings
+group by user_id;
 
 -- ============================================================================
 -- FIN DU SCRIPT

@@ -12,7 +12,7 @@
  */
 import { createClient } from "@supabase/supabase-js";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { DEFAULT_CATEGORIES } from "../constants/categories";
+import { DEFAULT_CATEGORIES, getCurrentMonth, monthToDate, dateToMonth } from "../constants/categories";
 
 const SUPABASE_URL = "https://dsiuunddjtbyquftozpn.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable__wcFTzvxeRWMasVMUTxRVw_ueDgKbf4";
@@ -185,12 +185,9 @@ export const getTransactions = async (userId, monthFilter = null) => {
 		.order("created_at", { ascending: false });
 
 	if (monthFilter) {
-		const startDate = `${monthFilter}-01`;
-		const nextMonth = new Date(`${monthFilter}-01T00:00:00`);
-		nextMonth.setMonth(nextMonth.getMonth() + 1);
-		const endDate = nextMonth.toISOString().slice(0, 10);
-		incomeQuery = incomeQuery.gte("created_at", startDate).lt("created_at", endDate);
-		expenseQuery = expenseQuery.gte("created_at", startDate).lt("created_at", endDate);
+		const monthDate = monthToDate(monthFilter);
+		incomeQuery = incomeQuery.eq("transaction_month", monthDate);
+		expenseQuery = expenseQuery.eq("transaction_month", monthDate);
 	}
 
 	const [{ data: incomesData, error: incomesError }, { data: expensesData, error: expensesError }] =
@@ -205,6 +202,7 @@ export const getTransactions = async (userId, monthFilter = null) => {
 		description: item.description,
 		type: "income",
 		date: item.created_at,
+		month: dateToMonth(item.transaction_month || item.created_at),
 		category: { id: null, name: item.source || "Revenu", icon: "cash-outline", color: "#4CAF50" },
 	}));
 
@@ -215,6 +213,7 @@ export const getTransactions = async (userId, monthFilter = null) => {
 		description: item.description,
 		type: "expense",
 		date: item.created_at,
+		month: dateToMonth(item.transaction_month || item.created_at),
 		category: item.categorie
 			? {
 					id: item.categorie.categorie_expense_id,
@@ -229,12 +228,16 @@ export const getTransactions = async (userId, monthFilter = null) => {
 };
 
 export const addTransaction = async (userId, transaction) => {
+	const monthKey = transaction.month || dateToMonth(transaction.date) || getCurrentMonth();
+	const transactionMonth = monthToDate(monthKey);
+
 	if (transaction.type === "income") {
 		const payload = {
 			user_id: userId,
 			source: transaction.category?.name || transaction.source || "Autre revenu",
 			description: transaction.description || "",
 			amount: transaction.amount,
+			transaction_month: transactionMonth,
 		};
 		if (transaction.date) payload.created_at = transaction.date;
 
@@ -247,6 +250,7 @@ export const addTransaction = async (userId, transaction) => {
 			description: data.description,
 			type: "income",
 			date: data.created_at,
+			month: dateToMonth(data.transaction_month),
 			category: { id: null, name: data.source || "Revenu", icon: "cash-outline", color: "#4CAF50" },
 		};
 	}
@@ -263,6 +267,7 @@ export const addTransaction = async (userId, transaction) => {
 		amount: transaction.amount,
 		description: transaction.description || "",
 		type: transaction.expenseType || "variable",
+		transaction_month: transactionMonth,
 	};
 	if (transaction.date) payload.created_at = transaction.date;
 
@@ -280,6 +285,7 @@ export const addTransaction = async (userId, transaction) => {
 		description: data.description,
 		type: "expense",
 		date: data.created_at,
+		month: dateToMonth(data.transaction_month),
 		category: data.categorie
 			? {
 					id: data.categorie.categorie_expense_id,
@@ -311,11 +317,13 @@ export const deleteTransaction = async (transactionId, type = null) => {
 };
 
 export const addIncome = async (userId, income) => {
+	const monthKey = income.month || dateToMonth(income.date) || getCurrentMonth();
 	const payload = {
 		user_id: userId,
 		source: income.source || "Autre revenu",
 		description: income.description || "",
 		amount: income.amount,
+		transaction_month: monthToDate(monthKey),
 	};
 	if (income.date) payload.created_at = income.date;
 
@@ -336,14 +344,92 @@ export const addSavingGoal = async (userId, goal) => {
 	return data;
 };
 
+const sumAmounts = (rows) => (rows || []).reduce((sum, row) => sum + Number(row.amount || 0), 0);
+
+const mapSavingRow = (item) => ({
+	id: item.saving_id,
+	amount: Number(item.amount),
+	month: dateToMonth(item.transaction_month || item.created_at),
+	description: item.description || "",
+	date: item.created_at,
+});
+
+/** Résumé financier d'un mois (revenus, dépenses, solde, épargne) */
+export const getMonthlySummary = async (userId, monthFilter) => {
+	const monthDate = monthToDate(monthFilter || getCurrentMonth());
+
+	const [{ data: incomes }, { data: expenses }, { data: savings }] = await Promise.all([
+		supabase.from("incomes").select("amount").eq("user_id", userId).eq("transaction_month", monthDate),
+		supabase.from("expenses").select("amount").eq("user_id", userId).eq("transaction_month", monthDate),
+		supabase.from("savings").select("amount").eq("user_id", userId).eq("transaction_month", monthDate),
+	]);
+
+	const income = sumAmounts(incomes);
+	const expense = sumAmounts(expenses);
+	const saved = sumAmounts(savings);
+	const balance = income - expense;
+	const available = Math.max(0, balance - saved);
+
+	return { income, expense, balance, saved, available, month: monthFilter || getCurrentMonth() };
+};
+
+/** Épargne cumulée (tous les mois confondus) */
+export const getTotalSavings = async (userId) => {
+	const { data, error } = await supabase.from("savings").select("amount").eq("user_id", userId);
+	if (error) throw error;
+	return sumAmounts(data);
+};
+
+/** Liste des versements d'épargne (optionnellement filtrés par mois) */
+export const getSavings = async (userId, monthFilter = null) => {
+	let query = supabase
+		.from("savings")
+		.select("*")
+		.eq("user_id", userId)
+		.order("created_at", { ascending: false });
+
+	if (monthFilter) {
+		query = query.eq("transaction_month", monthToDate(monthFilter));
+	}
+
+	const { data, error } = await query;
+	if (error) throw error;
+	return (data || []).map(mapSavingRow);
+};
+
+/** Virer un montant vers l'épargne (validé côté app + trigger SQL) */
 export const addSaving = async (userId, saving) => {
+	const monthKey = saving.month || getCurrentMonth();
+	const amount = Number(saving.amount);
+
+	if (!amount || amount <= 0) {
+		throw new Error("Le montant doit être supérieur à 0.");
+	}
+
+	const summary = await getMonthlySummary(userId, monthKey);
+	if (summary.balance <= 0) {
+		throw new Error("Solde mensuel insuffisant pour épargner.");
+	}
+	if (amount > summary.available) {
+		throw new Error(`Maximum épargnable ce mois : ${summary.available}`);
+	}
+
 	const payload = {
 		user_id: userId,
-		amount: saving.amount,
+		amount,
+		transaction_month: monthToDate(monthKey),
+		description: saving.description?.trim() || null,
 		saving_goal_id: saving.saving_goal_id || null,
 	};
 	if (saving.date) payload.created_at = saving.date;
+
 	const { data, error } = await supabase.from("savings").insert(payload).select("*").single();
 	if (error) throw error;
-	return data;
+	return mapSavingRow(data);
+};
+
+/** Supprimer un versement d'épargne */
+export const deleteSaving = async (savingId) => {
+	const { error } = await supabase.from("savings").delete().eq("saving_id", savingId);
+	if (error) throw error;
 };

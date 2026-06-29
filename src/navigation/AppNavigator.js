@@ -21,6 +21,7 @@ import RegisterScreen from '../screens/RegisterScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 import DashboardScreen from '../screens/DashboardScreen';
 import AddTransactionScreen from '../screens/AddTransactionScreen';
+import SavingsScreen from '../screens/SavingsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 
 const Stack = createNativeStackNavigator();
@@ -37,6 +38,8 @@ function MainTabs() {
             iconName = focused ? 'grid' : 'grid-outline';
           } else if (route.name === 'AddTransaction') {
             iconName = focused ? 'add-circle' : 'add-circle-outline';
+          } else if (route.name === 'Savings') {
+            iconName = focused ? 'wallet' : 'wallet-outline';
           } else if (route.name === 'Profile') {
             iconName = focused ? 'person' : 'person-outline';
           }
@@ -67,6 +70,11 @@ function MainTabs() {
         name="AddTransaction"
         component={AddTransactionScreen}
         options={{ tabBarLabel: 'Ajouter' }}
+      />
+      <Tab.Screen
+        name="Savings"
+        component={SavingsScreen}
+        options={{ tabBarLabel: 'Épargne' }}
       />
       <Tab.Screen
         name="Profile"
