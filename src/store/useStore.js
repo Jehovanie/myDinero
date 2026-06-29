@@ -40,6 +40,7 @@ const useStore = create((set, get) => ({
 			totalSavings: 0,
 			monthlySaved: 0,
 			monthlySummary: { income: 0, expense: 0, balance: 0, saved: 0, available: 0 },
+			scheduledExpenses: [],
 		}),
 
 	// ─── MOIS SÉLECTIONNÉ ─────────────────────────────────────
@@ -117,6 +118,27 @@ const useStore = create((set, get) => ({
 			savings: state.savings.filter((s) => s.id !== id),
 			totalSavings: totalSavings ?? state.totalSavings,
 			monthlySummary: monthlySummary ?? state.monthlySummary,
+		})),
+
+	// ─── DÉPENSES FIXES ──────────────────────────────────────────
+	scheduledExpenses: [],
+	setScheduledExpenses: (scheduledExpenses) => set({ scheduledExpenses: scheduledExpenses || [] }),
+
+	addScheduledExpense: (expense) =>
+		set((state) => ({
+			scheduledExpenses: [...state.scheduledExpenses, expense].sort((a, b) => a.due_day - b.due_day),
+		})),
+
+	removeScheduledExpense: (id) =>
+		set((state) => ({
+			scheduledExpenses: state.scheduledExpenses.filter((s) => s.id !== id),
+		})),
+
+	updateScheduledExpense: (id, updates) =>
+		set((state) => ({
+			scheduledExpenses: state.scheduledExpenses
+				.map((s) => (s.id === id ? { ...s, ...updates } : s))
+				.sort((a, b) => a.due_day - b.due_day),
 		})),
 
 	// ─── SOLDES CALCULÉS (getters) ────────────────────────────

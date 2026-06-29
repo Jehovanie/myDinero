@@ -13,7 +13,7 @@ import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshCon
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import useStore from "../store/useStore";
-import { getTransactions, getCategories, deleteTransaction, getTotalSavings, getMonthlySummary } from "../services/supabase";
+import { getTransactions, getCategories, deleteTransaction, getTotalSavings, getMonthlySummary, getScheduledExpenses } from "../services/supabase";
 import { formatCurrency, getCurrentMonth, formatMonthLabel } from "../constants/categories";
 import TransactionCard from "../components/TransactionCard";
 import ChartView from "../components/ChartView";
@@ -35,6 +35,8 @@ export default function DashboardScreen({ navigation }) {
 	const setTotalSavings = useStore((s) => s.setTotalSavings);
 	const monthlySaved = useStore((s) => s.monthlySaved);
 	const setMonthlySaved = useStore((s) => s.setMonthlySaved);
+	const scheduledExpenses = useStore((s) => s.scheduledExpenses);
+	const setScheduledExpenses = useStore((s) => s.setScheduledExpenses);
 
 	const [loading, setLoading] = useState(true);
 	const [refreshing, setRefreshing] = useState(false);
@@ -43,20 +45,22 @@ export default function DashboardScreen({ navigation }) {
 	const loadData = useCallback(async () => {
 		if (!user) return;
 		try {
-			const [txs, cats, total, summary] = await Promise.all([
+			const [txs, cats, total, summary, scheduled] = await Promise.all([
 				getTransactions(user.id, selectedMonth),
 				getCategories(),
 				getTotalSavings(user.id),
 				getMonthlySummary(user.id, selectedMonth),
+				getScheduledExpenses(user.id),
 			]);
 			setTransactions(txs);
 			setCategories(cats);
 			setTotalSavings(total);
 			setMonthlySaved(summary.saved);
+			setScheduledExpenses(scheduled);
 		} catch (error) {
 			console.error("Erreur chargement données :", error.message);
 		}
-	}, [user, selectedMonth, setTransactions, setCategories, setTotalSavings, setMonthlySaved]);
+	}, [user, selectedMonth, setTransactions, setCategories, setTotalSavings, setMonthlySaved, setScheduledExpenses]);
 
 	useEffect(() => {
 		(async () => {
@@ -168,6 +172,47 @@ export default function DashboardScreen({ navigation }) {
 						<Ionicons name="chevron-forward" size={20} color="#FFF" />
 					</LinearGradient>
 				</TouchableOpacity>
+
+				{/* ── Teaser dépenses fixes ───────────────────── */}
+				{scheduledExpenses.length > 0 && (() => {
+					const todayDate = new Date().getDate();
+					const upcoming = scheduledExpenses
+						.filter((e) => e.due_day >= todayDate)
+						.sort((a, b) => a.due_day - b.due_day);
+					const next = upcoming[0] || scheduledExpenses[0];
+					if (!next) return null;
+					const daysLeft = next.due_day >= todayDate
+						? next.due_day - todayDate
+						: null;
+
+					return (
+						<TouchableOpacity
+							onPress={() => navigation.navigate("Scheduled")}
+							activeOpacity={0.9}
+							className="mx-4 mt-3"
+						>
+							<View className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm flex-row items-center">
+								<View className="w-11 h-11 rounded-2xl bg-primary/10 items-center justify-center">
+									<Ionicons name="calendar-outline" size={22} color="#6C5CE7" />
+								</View>
+								<View className="flex-1 ml-3">
+									<Text className="text-gray-500 text-xs">Prochaine échéance</Text>
+									<Text className="text-gray-900 font-semibold text-sm" numberOfLines={1}>
+										{next.name} — {formatCurrency(next.amount)}
+									</Text>
+								</View>
+								{daysLeft !== null && (
+									<View className="bg-primary/10 px-2.5 py-1 rounded-full">
+										<Text className="text-primary text-xs font-bold">
+											{daysLeft === 0 ? "Aujourd'hui" : `J-${daysLeft}`}
+										</Text>
+									</View>
+								)}
+								<Ionicons name="chevron-forward" size={18} color="#999" style={{ marginLeft: 8 }} />
+							</View>
+						</TouchableOpacity>
+					);
+				})()}
 
 				{/* ── Graphique dépenses par catégorie ────────── */}
 				{expenseBreakdown.length > 0 && (

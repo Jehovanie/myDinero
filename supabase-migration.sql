@@ -493,5 +493,32 @@ from public.savings
 group by user_id;
 
 -- ============================================================================
+-- MIGRATION — Dépenses fixes programmées (loyer, électricité, abonnements…)
+-- ============================================================================
+-- Chaque utilisateur peut définir des dépenses récurrentes avec un jour
+-- d'échéance mensuel (1-28). L'app affiche un calendrier et envoie des
+-- notifications locales J-1.
+-- ============================================================================
+
+create table if not exists public.scheduled_expenses (
+  scheduled_expense_id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users(user_id) on delete cascade,
+  name text not null,
+  amount numeric(12,2) not null check (amount > 0),
+  categorie_expense_id uuid references public.categorie_expenses(categorie_expense_id) on delete set null,
+  due_day integer not null check (due_day >= 1 and due_day <= 28),
+  is_active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_scheduled_expenses_user_id
+  on public.scheduled_expenses(user_id);
+
+alter table public.scheduled_expenses enable row level security;
+
+create policy "scheduled_expenses_all_own" on public.scheduled_expenses
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- ============================================================================
 -- FIN DU SCRIPT
 -- ============================================================================

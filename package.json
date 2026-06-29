@@ -1,39 +1,40 @@
 {
-	"name": "myDinero",
-	"version": "1.0.0",
-	"main": "index.js",
-	"scripts": {
-		"start": "expo start",
-		"android": "expo run:android",
-		"ios": "expo run:ios",
-		"web": "expo start --web"
-	},
-	"dependencies": {
-		"@expo/vector-icons": "^14.0.4",
-		"@react-native-async-storage/async-storage": "2.1.2",
-		"@react-navigation/bottom-tabs": "^6.6.1",
-		"@react-navigation/native": "^6.1.18",
-		"@react-navigation/native-stack": "^6.11.0",
-		"@supabase/supabase-js": "^2.49.1",
-		"expo": "~53.0.0",
-		"expo-asset": "~11.1.7",
-		"expo-font": "~13.3.2",
-		"expo-linear-gradient": "~14.1.5",
-		"expo-status-bar": "~2.2.3",
-		"nativewind": "^4.1.23",
-		"react": "^19.0.0",
-		"react-native": "^0.79.6",
-		"react-native-gesture-handler": "~2.24.0",
-		"react-native-reanimated": "~3.17.4",
-		"react-native-safe-area-context": "5.4.0",
-		"react-native-screens": "~4.11.1",
-		"react-native-svg": "15.11.2",
-		"react-native-url-polyfill": "^3.0.0",
-		"tailwindcss": "^3.4.17",
-		"zustand": "^5.0.3"
-	},
-	"devDependencies": {
-		"@babel/core": "^7.25.2"
-	},
-	"private": true
+  "name": "myDinero",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web"
+  },
+  "dependencies": {
+    "@expo/vector-icons": "^14.0.4",
+    "@react-native-async-storage/async-storage": "2.1.2",
+    "@react-navigation/bottom-tabs": "^6.6.1",
+    "@react-navigation/native": "^6.1.18",
+    "@react-navigation/native-stack": "^6.11.0",
+    "@supabase/supabase-js": "^2.49.1",
+    "expo": "~53.0.0",
+    "expo-asset": "~11.1.7",
+    "expo-font": "~13.3.2",
+    "expo-linear-gradient": "~14.1.5",
+    "expo-notifications": "~0.31.5",
+    "expo-status-bar": "~2.2.3",
+    "nativewind": "^4.1.23",
+    "react": "^19.0.0",
+    "react-native": "^0.79.6",
+    "react-native-gesture-handler": "~2.24.0",
+    "react-native-reanimated": "~3.17.4",
+    "react-native-safe-area-context": "5.4.0",
+    "react-native-screens": "~4.11.1",
+    "react-native-svg": "15.11.2",
+    "react-native-url-polyfill": "^3.0.0",
+    "tailwindcss": "^3.4.17",
+    "zustand": "^5.0.3"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2"
+  },
+  "private": true
 }

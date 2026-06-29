@@ -433,3 +433,129 @@ export const deleteSaving = async (savingId) => {
 	const { error } = await supabase.from("savings").delete().eq("saving_id", savingId);
 	if (error) throw error;
 };
+
+// ------------------ DÉPENSES FIXES / PROGRAMMÉES ----------------------------
+
+const mapScheduledRow = (item) => ({
+	id: item.scheduled_expense_id,
+	user_id: item.user_id,
+	name: item.name,
+	amount: Number(item.amount),
+	due_day: item.due_day,
+	is_active: item.is_active,
+	categorie_expense_id: item.categorie_expense_id,
+	category: item.categorie
+		? {
+				id: item.categorie.categorie_expense_id,
+				name: item.categorie.name,
+				icon: item.categorie.icon || null,
+				color: item.categorie.color || "#6C5CE7",
+			}
+		: null,
+	created_at: item.created_at,
+});
+
+/** Liste toutes les dépenses fixes actives d'un utilisateur */
+export const getScheduledExpenses = async (userId) => {
+	const { data, error } = await supabase
+		.from("scheduled_expenses")
+		.select("*, categorie:categorie_expenses(*)")
+		.eq("user_id", userId)
+		.eq("is_active", true)
+		.order("due_day", { ascending: true });
+	if (error) throw error;
+	return (data || []).map(mapScheduledRow);
+};
+
+/** Créer une dépense fixe programmée */
+export const addScheduledExpense = async (userId, expense) => {
+	const amount = Number(expense.amount);
+	if (!amount || amount <= 0) throw new Error("Le montant doit être supérieur à 0.");
+	if (!expense.name?.trim()) throw new Error("Le nom est obligatoire.");
+	if (!expense.due_day || expense.due_day < 1 || expense.due_day > 28) {
+		throw new Error("Le jour d'échéance doit être entre 1 et 28.");
+	}
+
+	const payload = {
+		user_id: userId,
+		name: expense.name.trim(),
+		amount,
+		due_day: expense.due_day,
+		categorie_expense_id: expense.categorie_expense_id || null,
+	};
+
+	const { data, error } = await supabase
+		.from("scheduled_expenses")
+		.insert(payload)
+		.select("*, categorie:categorie_expenses(*)")
+		.single();
+	if (error) throw error;
+	return mapScheduledRow(data);
+};
+
+/** Modifier une dépense fixe */
+export const updateScheduledExpense = async (id, updates) => {
+	const payload = {};
+	if (updates.name !== undefined) payload.name = updates.name.trim();
+	if (updates.amount !== undefined) payload.amount = Number(updates.amount);
+	if (updates.due_day !== undefined) payload.due_day = updates.due_day;
+	if (updates.categorie_expense_id !== undefined) payload.categorie_expense_id = updates.categorie_expense_id;
+	if (updates.is_active !== undefined) payload.is_active = updates.is_active;
+
+	const { data, error } = await supabase
+		.from("scheduled_expenses")
+		.update(payload)
+		.eq("scheduled_expense_id", id)
+		.select("*, categorie:categorie_expenses(*)")
+		.single();
+	if (error) throw error;
+	return mapScheduledRow(data);
+};
+
+/** Supprimer (désactiver) une dépense fixe */
+export const deleteScheduledExpense = async (id) => {
+	const { error } = await supabase.from("scheduled_expenses").delete().eq("scheduled_expense_id", id);
+	if (error) throw error;
+};
+
+/**
+ * Marquer une dépense fixe comme payée pour un mois donné.
+ * Crée une vraie dépense dans la table `expenses` et retourne la transaction mappée.
+ */
+export const markScheduledAsPaid = async (userId, scheduled, monthKey) => {
+	const transactionMonth = monthToDate(monthKey || getCurrentMonth());
+
+	const payload = {
+		user_id: userId,
+		categorie_expense_id: scheduled.categorie_expense_id || scheduled.category?.id || null,
+		amount: scheduled.amount,
+		description: `[Fixe] ${scheduled.name}`,
+		type: "fix",
+		transaction_month: transactionMonth,
+	};
+
+	const { data, error } = await supabase
+		.from("expenses")
+		.insert(payload)
+		.select("*, categorie:categorie_expenses(*)")
+		.single();
+	if (error) throw error;
+
+	return {
+		id: data.expense_id,
+		user_id: data.user_id,
+		amount: data.amount,
+		description: data.description,
+		type: "expense",
+		date: data.created_at,
+		month: dateToMonth(data.transaction_month),
+		category: data.categorie
+			? {
+					id: data.categorie.categorie_expense_id,
+					name: data.categorie.name,
+					icon: data.categorie.icon || null,
+					color: data.categorie.color || "#EF4444",
+				}
+			: null,
+	};
+};

@@ -21,6 +21,7 @@ import RegisterScreen from '../screens/RegisterScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 import DashboardScreen from '../screens/DashboardScreen';
 import AddTransactionScreen from '../screens/AddTransactionScreen';
+import ScheduledExpensesScreen from '../screens/ScheduledExpensesScreen';
 import SavingsScreen from '../screens/SavingsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 
@@ -38,6 +39,8 @@ function MainTabs() {
             iconName = focused ? 'grid' : 'grid-outline';
           } else if (route.name === 'AddTransaction') {
             iconName = focused ? 'add-circle' : 'add-circle-outline';
+          } else if (route.name === 'Scheduled') {
+            iconName = focused ? 'calendar' : 'calendar-outline';
           } else if (route.name === 'Savings') {
             iconName = focused ? 'wallet' : 'wallet-outline';
           } else if (route.name === 'Profile') {
@@ -70,6 +73,11 @@ function MainTabs() {
         name="AddTransaction"
         component={AddTransactionScreen}
         options={{ tabBarLabel: 'Ajouter' }}
+      />
+      <Tab.Screen
+        name="Scheduled"
+        component={ScheduledExpensesScreen}
+        options={{ tabBarLabel: 'Fixes' }}
       />
       <Tab.Screen
         name="Savings"

@@ -27,6 +27,7 @@ import './global.css';
 // Services et store
 import { supabase } from './src/services/supabase';
 import useStore from './src/store/useStore';
+import { setupNotifications } from './src/services/notifications';
 
 // Navigation
 import AppNavigator from './src/navigation/AppNavigator';
@@ -37,6 +38,9 @@ export default function App() {
   const setLoading = useStore((s) => s.setLoading);
 
   useEffect(() => {
+    // Configurer les notifications locales
+    setupNotifications().catch(console.warn);
+
     // Guard : si le client Supabase n'a pas pu être créé, on sort
     if (!supabase) {
       setLoading(false);
