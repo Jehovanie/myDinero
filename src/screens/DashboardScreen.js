@@ -216,8 +216,7 @@ export default function DashboardScreen({ navigation }) {
 
 				{/* ── Graphique dépenses par catégorie ────────── */}
 				{expenseBreakdown.length > 0 && (
-					<View className="bg-white mx-4 mt-4 p-4 rounded-2xl shadow-sm border border-gray-100">
-						<Text className="text-gray-800 font-semibold mb-3">Dépenses par catégorie</Text>
+					<View className="bg-white mx-4 mt-4 p-4 rounded-2xl border border-gray-100">
 						<ChartView data={expenseBreakdown} />
 					</View>
 				)}

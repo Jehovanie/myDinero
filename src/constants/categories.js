@@ -76,3 +76,55 @@ export const shiftMonth = (monthKey, delta) => {
 
 /** true si monthKey est strictement après le mois courant */
 export const isFutureMonth = (monthKey) => monthKey > getCurrentMonth();
+
+/** Palette locale pour les graphiques (non stockée en base) */
+export const CHART_COLOR_PALETTE = [
+	"#6C5CE7",
+	"#00B894",
+	"#0984E3",
+	"#FDCB6E",
+	"#E17055",
+	"#FD79A8",
+	"#A29BFE",
+	"#00CEC9",
+	"#E84393",
+	"#55EFC4",
+	"#74B9FF",
+	"#FF7675",
+	"#2D3436",
+	"#636E72",
+];
+
+function hashCategoryName(name = "") {
+	let hash = 0;
+	for (let i = 0; i < name.length; i++) {
+		hash = name.charCodeAt(i) + ((hash << 5) - hash);
+	}
+	return Math.abs(hash);
+}
+
+/** Couleur stable pour une catégorie (même nom = même couleur à chaque affichage) */
+export function getChartColorForName(name, index = 0) {
+	const key = name?.trim() || `cat-${index}`;
+	return CHART_COLOR_PALETTE[hashCategoryName(key) % CHART_COLOR_PALETTE.length];
+}
+
+/** Attribue une couleur distincte à chaque entrée du graphique */
+export function assignDistinctChartColors(items, othersColor = "#B2BEC3") {
+	const used = new Set();
+
+	return (items || []).map((item, index) => {
+		if (item.name === "Autres") {
+			return { ...item, color: othersColor };
+		}
+
+		let color = getChartColorForName(item.name, index);
+		let offset = 0;
+		while (used.has(color) && offset < CHART_COLOR_PALETTE.length) {
+			color = CHART_COLOR_PALETTE[(hashCategoryName(item.name) + offset) % CHART_COLOR_PALETTE.length];
+			offset++;
+		}
+		used.add(color);
+		return { ...item, color };
+	});
+}
