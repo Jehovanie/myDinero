@@ -137,7 +137,7 @@ export default function ProfileScreen({ navigation }) {
 						value={budget}
 						onChangeText={setBudget}
 					/>
-					<Text className="text-gray-400 mx-2">€</Text>
+					<Text className="text-gray-400 mx-2">Ar</Text>
 					<TouchableOpacity
 						onPress={handleSaveBudget}
 						disabled={savingBudget}

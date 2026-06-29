@@ -108,7 +108,7 @@ export default function AddTransactionScreen({ navigation }) {
 				<View className="mx-4 mt-6">
 					<Text className="text-gray-600 text-sm mb-1.5 ml-1">Montant</Text>
 					<View className="flex-row items-center bg-white rounded-2xl border border-gray-200 px-4 h-16">
-						<Text className="text-gray-400 text-xl mr-2">€</Text>
+						<Text className="text-gray-400 text-xl mr-2">Ar</Text>
 						<TextInput
 							className="flex-1 text-gray-800 text-2xl font-bold"
 							placeholder="0,00"
