@@ -13,7 +13,7 @@ import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshCon
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import useStore from "../store/useStore";
-import { getTransactions, getCategories, deleteTransaction, getTotalSavings } from "../services/supabase";
+import { getTransactions, getCategories, deleteTransaction, getTotalSavings, getMonthlySummary } from "../services/supabase";
 import { formatCurrency, getCurrentMonth, formatMonthLabel } from "../constants/categories";
 import TransactionCard from "../components/TransactionCard";
 import ChartView from "../components/ChartView";
@@ -33,6 +33,8 @@ export default function DashboardScreen({ navigation }) {
 	const setSelectedMonth = useStore((s) => s.setSelectedMonth);
 	const totalSavings = useStore((s) => s.totalSavings);
 	const setTotalSavings = useStore((s) => s.setTotalSavings);
+	const monthlySaved = useStore((s) => s.monthlySaved);
+	const setMonthlySaved = useStore((s) => s.setMonthlySaved);
 
 	const [loading, setLoading] = useState(true);
 	const [refreshing, setRefreshing] = useState(false);
@@ -41,18 +43,20 @@ export default function DashboardScreen({ navigation }) {
 	const loadData = useCallback(async () => {
 		if (!user) return;
 		try {
-			const [txs, cats, total] = await Promise.all([
+			const [txs, cats, total, summary] = await Promise.all([
 				getTransactions(user.id, selectedMonth),
 				getCategories(),
 				getTotalSavings(user.id),
+				getMonthlySummary(user.id, selectedMonth),
 			]);
 			setTransactions(txs);
 			setCategories(cats);
 			setTotalSavings(total);
+			setMonthlySaved(summary.saved);
 		} catch (error) {
 			console.error("Erreur chargement données :", error.message);
 		}
-	}, [user, selectedMonth, setTransactions, setCategories, setTotalSavings]);
+	}, [user, selectedMonth, setTransactions, setCategories, setTotalSavings, setMonthlySaved]);
 
 	useEffect(() => {
 		(async () => {
@@ -114,7 +118,7 @@ export default function DashboardScreen({ navigation }) {
 						{formatCurrency(balance)}
 					</Text>
 
-					{/* Résumé revenus / dépenses */}
+					{/* Résumé revenus / dépenses / épargne */}
 					<View className="flex-row mt-5">
 						<View className="flex-1">
 							<View className="flex-row items-center">
@@ -130,6 +134,15 @@ export default function DashboardScreen({ navigation }) {
 							</View>
 							<Text className="text-white font-semibold mt-0.5">{formatCurrency(monthlyExpenses)}</Text>
 						</View>
+						{monthlySaved > 0 && (
+							<View className="flex-1">
+								<View className="flex-row items-center">
+									<Ionicons name="wallet-outline" size={16} color="#81ECEC" />
+									<Text className="text-white/70 text-xs ml-1">Épargne</Text>
+								</View>
+								<Text className="text-white font-semibold mt-0.5">{formatCurrency(monthlySaved)}</Text>
+							</View>
+						)}
 					</View>
 				</View>
 

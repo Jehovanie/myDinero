@@ -38,6 +38,7 @@ const useStore = create((set, get) => ({
 			selectedMonth: getCurrentMonth(),
 			savings: [],
 			totalSavings: 0,
+			monthlySaved: 0,
 			monthlySummary: { income: 0, expense: 0, balance: 0, saved: 0, available: 0 },
 		}),
 
@@ -91,6 +92,7 @@ const useStore = create((set, get) => ({
 	// ─── ÉPARGNE ──────────────────────────────────────────────
 	savings: [],
 	totalSavings: 0,
+	monthlySaved: 0,
 	monthlySummary: { income: 0, expense: 0, balance: 0, saved: 0, available: 0 },
 
 	setSavingsData: ({ savings, totalSavings, monthlySummary }) =>
@@ -101,6 +103,7 @@ const useStore = create((set, get) => ({
 		}),
 
 	setTotalSavings: (totalSavings) => set({ totalSavings: Number(totalSavings) || 0 }),
+	setMonthlySaved: (monthlySaved) => set({ monthlySaved: Number(monthlySaved) || 0 }),
 
 	prependSaving: (saving, monthlySummary, totalSavings) =>
 		set((state) => ({
@@ -119,7 +122,8 @@ const useStore = create((set, get) => ({
 	// ─── SOLDES CALCULÉS (getters) ────────────────────────────
 	getBalance: () => {
 		const txs = get().transactions.map((tx) => get().normalizeTransaction(tx));
-		return calculateTotal(txs, "income") - calculateTotal(txs, "expense");
+		const saved = Number(get().monthlySaved) || 0;
+		return calculateTotal(txs, "income") - calculateTotal(txs, "expense") - saved;
 	},
 
 	getMonthlyIncome: () =>

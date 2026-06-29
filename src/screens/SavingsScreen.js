@@ -53,6 +53,7 @@ export default function SavingsScreen() {
 	const setSavingsData = useStore((s) => s.setSavingsData);
 	const prependSaving = useStore((s) => s.prependSaving);
 	const removeSaving = useStore((s) => s.removeSaving);
+	const setMonthlySaved = useStore((s) => s.setMonthlySaved);
 
 	const [loading, setLoading] = useState(true);
 	const [refreshing, setRefreshing] = useState(false);
@@ -68,10 +69,11 @@ export default function SavingsScreen() {
 				getMonthlySummary(user.id, selectedMonth),
 			]);
 			setSavingsData({ savings: savingsList, totalSavings: total, monthlySummary: summary });
+			setMonthlySaved(summary.saved);
 		} catch (error) {
 			console.error("Erreur chargement épargne :", error.message);
 		}
-	}, [user, selectedMonth, setSavingsData]);
+	}, [user, selectedMonth, setSavingsData, setMonthlySaved]);
 
 	useEffect(() => {
 		(async () => {
@@ -100,6 +102,7 @@ export default function SavingsScreen() {
 				getMonthlySummary(user.id, selectedMonth),
 			]);
 			prependSaving(newSaving, summary, total);
+			setMonthlySaved(summary.saved);
 			setTransferVisible(false);
 			Alert.alert("Succès", `${formatCurrency(amount)} ajouté à votre épargne.`);
 		} catch (error) {
@@ -125,6 +128,7 @@ export default function SavingsScreen() {
 						]);
 						removeSaving(id, summary, total);
 						setSavingsData({ savings: savingsList, totalSavings: total, monthlySummary: summary });
+						setMonthlySaved(summary.saved);
 					} catch (error) {
 						Alert.alert("Erreur", error.message);
 					}
