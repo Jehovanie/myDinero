@@ -62,6 +62,12 @@ export default function AddTransactionScreen({ navigation }) {
 	}, [categoryId, filteredCategories]);
 
 	// Réinitialiser la catégorie quand on change de type
+	const resetForm = () => {
+		setAmount("");
+		setDescription("");
+		setCategoryId(null);
+	};
+
 	const handleTypeChange = (newType) => {
 		setType(newType);
 		setCategoryId(null);
@@ -102,6 +108,7 @@ export default function AddTransactionScreen({ navigation }) {
 				date: new Date().toISOString(),
 			});
 			prependTransaction(newTx);
+			resetForm();
 
 			Alert.alert("Succès", "Transaction ajoutée avec succès !", [
 				{ text: "OK", onPress: () => navigation.goBack() },
