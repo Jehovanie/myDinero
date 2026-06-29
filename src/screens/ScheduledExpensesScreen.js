@@ -278,7 +278,7 @@ export default function ScheduledExpensesScreen() {
 	}
 
 	return (
-		<View className="flex-1 bg-surface-light pt-12">
+		<View className="flex-1 bg-surface-light pt-20">
 			<ScrollView
 				showsVerticalScrollIndicator={false}
 				refreshControl={
