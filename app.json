@@ -1,31 +1,34 @@
 {
   "expo": {
-    "name": "myDinero",
-    "slug": "myDinero",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "splash": {
-      "backgroundColor": "#6C5CE7",
-      "resizeMode": "contain"
-    },
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.mydinero.app"
-    },
-    "android": {
-      "adaptiveIcon": {
-        "backgroundColor": "#6C5CE7"
-      },
-      "package": "com.mydinero.app"
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    },
-    "plugins": [
-      "expo-asset",
-      "expo-font"
-    ]
+		"name": "myDinero",
+		"slug": "myDinero",
+		"version": "1.0.0",
+		"orientation": "portrait",
+		"icon": "./assets/icon.png",
+		"userInterfaceStyle": "light",
+		"splash": {
+			"image": "./assets/splash.png",
+			"resizeMode": "contain",
+			"backgroundColor": "#6C5CE7"
+		},
+		"ios": {
+			"supportsTablet": true,
+			"bundleIdentifier": "com.mydinero.app"
+		},
+		"android": {
+			"adaptiveIcon": {
+				"backgroundColor": "#6C5CE7"
+			},
+			"package": "com.mydinero.app"
+		},
+		"web": {
+			"favicon": "./assets/favicon.png"
+		},
+		"plugins": ["expo-asset", "expo-font"],
+		"extra": {
+			"eas": {
+				"projectId": "7a9d3842-2b7e-4c4b-9b4d-8f933adf75de"
+			}
+		}
   }
 }

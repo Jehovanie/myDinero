@@ -17,9 +17,12 @@ import 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import 'react-native-screens';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { View, ActivityIndicator } from 'react-native';
+import * as Font from 'expo-font';
+import { Ionicons, MaterialIcons, FontAwesome } from "@expo/vector-icons";
 
 // Import du CSS Tailwind (obligatoire pour NativeWind)
 import './global.css';
@@ -28,6 +31,8 @@ import './global.css';
 import { supabase } from './src/services/supabase';
 import useStore from './src/store/useStore';
 import { setupNotifications } from './src/services/notifications';
+import { useFonts } from "expo-font";
+import * as SplashScreen from "expo-splash-screen";
 
 // Navigation
 import AppNavigator from './src/navigation/AppNavigator';
@@ -36,6 +41,18 @@ export default function App() {
   const setUser = useStore((s) => s.setUser);
   const setSession = useStore((s) => s.setSession);
   const setLoading = useStore((s) => s.setLoading);
+
+  const [fontsLoaded] = useFonts({
+    ...Ionicons.font,
+    ...MaterialIcons.font,
+    ...FontAwesome.font,
+  });
+
+  useEffect(() => {
+		if (fontsLoaded) {
+			SplashScreen.hideAsync();
+		}
+  }, [fontsLoaded]);
 
   useEffect(() => {
     // Configurer les notifications locales
@@ -68,6 +85,14 @@ export default function App() {
       subscription?.unsubscribe();
     };
   }, [setUser, setSession, setLoading]);
+
+  if (!fontsLoaded) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#6C5CE7', justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#ffffff" />
+      </View>
+    );
+  }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
