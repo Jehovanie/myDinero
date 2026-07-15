@@ -40,6 +40,7 @@ export default function DashboardScreen({ navigation }) {
 
 	const [loading, setLoading] = useState(true);
 	const [refreshing, setRefreshing] = useState(false);
+	const [savingsVisible, setSavingsVisible] = useState(false);
 
 	// Charger les données depuis Supabase pour le mois sélectionné
 	const loadData = useCallback(async () => {
@@ -167,8 +168,22 @@ export default function DashboardScreen({ navigation }) {
 						</View>
 						<View className="flex-1 ml-3">
 							<Text className="text-white/80 text-xs">Épargne cumulée</Text>
-							<Text className="text-white text-xl font-bold">{formatCurrency(totalSavings)}</Text>
+							<Text className="text-white text-xl font-bold">
+								{savingsVisible ? formatCurrency(totalSavings) : "••••••"}
+							</Text>
 						</View>
+						<TouchableOpacity
+							onPress={() => setSavingsVisible((v) => !v)}
+							hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+							className="w-9 h-9 rounded-full bg-white/20 items-center justify-center mr-1"
+							activeOpacity={0.7}
+						>
+							<Ionicons
+								name={savingsVisible ? "eye-outline" : "eye-off-outline"}
+								size={18}
+								color="#FFF"
+							/>
+						</TouchableOpacity>
 						<Ionicons name="chevron-forward" size={20} color="#FFF" />
 					</LinearGradient>
 				</TouchableOpacity>
@@ -176,10 +191,25 @@ export default function DashboardScreen({ navigation }) {
 				{/* ── Teaser dépenses fixes ───────────────────── */}
 				{scheduledExpenses.length > 0 && (() => {
 					const todayDate = new Date().getDate();
-					const upcoming = scheduledExpenses
+
+					// Dépenses fixes déjà payées ce mois (transaction "[Fixe]" correspondante)
+					const paidIds = new Set(
+						transactions
+							.filter((tx) => tx.type === "expense" && tx.description?.startsWith("[Fixe]"))
+							.map((tx) => scheduledExpenses.find((e) => tx.description.includes(e.name))?.id)
+							.filter(Boolean)
+					);
+
+					// On ne garde que les échéances non payées
+					const unpaid = scheduledExpenses.filter((e) => !paidIds.has(e.id));
+
+					// Si tout est payé ce mois-ci, on n'affiche pas les échéances des mois suivants
+					if (unpaid.length === 0) return null;
+
+					const upcoming = unpaid
 						.filter((e) => e.due_day >= todayDate)
 						.sort((a, b) => a.due_day - b.due_day);
-					const next = upcoming[0] || scheduledExpenses[0];
+					const next = upcoming[0] || unpaid[0];
 					if (!next) return null;
 					const daysLeft = next.due_day >= todayDate
 						? next.due_day - todayDate
