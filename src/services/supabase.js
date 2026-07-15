@@ -437,6 +437,40 @@ export const addSaving = async (userId, saving) => {
 	return mapSavingRow(data);
 };
 
+/**
+ * Retirer un montant de l'épargne cumulée vers le solde du mois.
+ * Stocké comme une ligne "savings" négative : réduit l'épargne totale et
+ * augmente le solde épargnable du mois. Plafonné à l'épargne cumulée.
+ */
+export const withdrawSaving = async (userId, withdrawal) => {
+	const monthKey = withdrawal.month || getCurrentMonth();
+	const amount = Number(withdrawal.amount);
+
+	if (!amount || amount <= 0) {
+		throw new Error("Le montant doit être supérieur à 0.");
+	}
+
+	const total = await getTotalSavings(userId);
+	if (total <= 0) {
+		throw new Error("Aucune épargne disponible à retirer.");
+	}
+	if (amount > total) {
+		throw new Error(`Maximum retirable : ${total}`);
+	}
+
+	const payload = {
+		user_id: userId,
+		amount: -amount,
+		transaction_month: monthToDate(monthKey),
+		description: withdrawal.description?.trim() || null,
+	};
+	if (withdrawal.date) payload.created_at = withdrawal.date;
+
+	const { data, error } = await supabase.from("savings").insert(payload).select("*").single();
+	if (error) throw error;
+	return mapSavingRow(data);
+};
+
 /** Supprimer un versement d'épargne */
 export const deleteSaving = async (savingId) => {
 	const { error } = await supabase.from("savings").delete().eq("saving_id", savingId);

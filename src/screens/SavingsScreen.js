@@ -22,12 +22,14 @@ import {
 	getTotalSavings,
 	getMonthlySummary,
 	addSaving,
+	withdrawSaving,
 	deleteSaving,
 } from "../services/supabase";
 import { formatCurrency, formatMonthLabel, getCurrentMonth } from "../constants/categories";
 import MonthSelector from "../components/MonthSelector";
 import SavingsHistoryCard from "../components/SavingsHistoryCard";
 import SavingsTransferModal from "../components/SavingsTransferModal";
+import SavingsWithdrawModal from "../components/SavingsWithdrawModal";
 
 function StatPill({ label, value, accent, icon }) {
 	return (
@@ -59,6 +61,8 @@ export default function SavingsScreen() {
 	const [refreshing, setRefreshing] = useState(false);
 	const [transferVisible, setTransferVisible] = useState(false);
 	const [transferLoading, setTransferLoading] = useState(false);
+	const [withdrawVisible, setWithdrawVisible] = useState(false);
+	const [withdrawLoading, setWithdrawLoading] = useState(false);
 
 	const loadData = useCallback(async () => {
 		if (!user) return;
@@ -112,6 +116,29 @@ export default function SavingsScreen() {
 		}
 	};
 
+	const handleWithdraw = async ({ amount, description }) => {
+		setWithdrawLoading(true);
+		try {
+			const newSaving = await withdrawSaving(user.id, {
+				amount,
+				description,
+				month: selectedMonth,
+			});
+			const [total, summary] = await Promise.all([
+				getTotalSavings(user.id),
+				getMonthlySummary(user.id, selectedMonth),
+			]);
+			prependSaving(newSaving, summary, total);
+			setMonthlySaved(summary.saved);
+			setWithdrawVisible(false);
+			Alert.alert("Retrait effectué", `${formatCurrency(amount)} ramené vers votre solde.`);
+		} catch (error) {
+			Alert.alert("Impossible de retirer", error.message || "Réessayez plus tard.");
+		} finally {
+			setWithdrawLoading(false);
+		}
+	};
+
 	const handleDelete = (id) => {
 		Alert.alert("Supprimer ce versement ?", "Le montant sera retiré de votre épargne cumulée.", [
 			{ text: "Annuler", style: "cancel" },
@@ -138,9 +165,10 @@ export default function SavingsScreen() {
 	};
 
 	const { balance, saved, available, income, expense } = monthlySummary;
-	const saveProgress = balance > 0 ? Math.min(100, Math.round((saved / balance) * 100)) : saved > 0 ? 100 : 0;
+	const saveProgress = balance > 0 ? Math.max(0, Math.min(100, Math.round((saved / balance) * 100))) : saved > 0 ? 100 : 0;
 	const isCurrentMonth = selectedMonth === getCurrentMonth();
 	const canTransfer = available > 0;
+	const canWithdraw = totalSavings > 0;
 
 	if (loading) {
 		return (
@@ -252,12 +280,26 @@ export default function SavingsScreen() {
 					</Text>
 				)}
 
+				{/* CTA retrait d'épargne */}
+				<TouchableOpacity
+					onPress={() => (canWithdraw ? setWithdrawVisible(true) : null)}
+					disabled={!canWithdraw}
+					activeOpacity={0.85}
+					className="mx-4 mt-3 flex-row items-center justify-center rounded-2xl border border-amber-300 bg-amber-50 py-4"
+					style={{ opacity: canWithdraw ? 1 : 0.5 }}
+				>
+					<Ionicons name="arrow-undo-outline" size={20} color="#D97706" />
+					<Text className="text-amber-700 font-semibold text-base ml-2">
+						{canWithdraw ? "Retirer de l'épargne" : "Aucune épargne à retirer"}
+					</Text>
+				</TouchableOpacity>
+
 				{/* Historique du mois */}
 				<View className="mt-8">
 					<View className="flex-row items-center justify-between px-4 mb-3">
-						<Text className="text-gray-800 font-semibold text-lg">Versements du mois</Text>
+						<Text className="text-gray-800 font-semibold text-lg">Mouvements du mois</Text>
 						{savings.length > 0 && (
-							<Text className="text-gray-400 text-xs">{savings.length} virement(s)</Text>
+							<Text className="text-gray-400 text-xs">{savings.length} opération(s)</Text>
 						)}
 					</View>
 
@@ -265,7 +307,7 @@ export default function SavingsScreen() {
 						<View className="items-center py-10 mx-4 bg-white rounded-2xl border border-dashed border-gray-200">
 							<Ionicons name="leaf-outline" size={40} color="#DDD" />
 							<Text className="text-gray-400 mt-3 text-center px-6 text-sm">
-								Aucun versement pour {formatMonthLabel(selectedMonth).toLowerCase()}.
+								Aucun mouvement pour {formatMonthLabel(selectedMonth).toLowerCase()}.
 							</Text>
 						</View>
 					) : (
@@ -283,6 +325,15 @@ export default function SavingsScreen() {
 				available={available}
 				monthLabel={formatMonthLabel(selectedMonth)}
 				loading={transferLoading}
+			/>
+
+			<SavingsWithdrawModal
+				visible={withdrawVisible}
+				onClose={() => setWithdrawVisible(false)}
+				onSubmit={handleWithdraw}
+				totalSavings={totalSavings}
+				monthLabel={formatMonthLabel(selectedMonth)}
+				loading={withdrawLoading}
 			/>
 		</View>
 	);

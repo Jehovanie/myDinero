@@ -520,5 +520,79 @@ create policy "scheduled_expenses_all_own" on public.scheduled_expenses
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 -- ============================================================================
+-- MIGRATION — Retraits d'épargne (sortie de l'épargne vers le solde du mois)
+-- ============================================================================
+-- Un retrait est stocké comme une ligne "savings" avec un montant NÉGATIF.
+-- Effet symétrique au versement : l'épargne cumulée (somme des montants)
+-- diminue et le solde épargnable du mois augmente. Un retrait ne peut pas
+-- dépasser l'épargne cumulée totale de l'utilisateur.
+-- ============================================================================
+
+-- Autoriser les montants négatifs (retraits), mais jamais zéro
+alter table public.savings
+  drop constraint if exists savings_amount_check;
+alter table public.savings
+  drop constraint if exists savings_amount_nonzero;
+alter table public.savings
+  add constraint savings_amount_nonzero check (amount <> 0);
+
+-- Épargne cumulée totale (tous mois confondus), ligne en cours incluse au check
+create or replace function public.get_total_saved(p_user_id uuid)
+returns numeric
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(sum(amount), 0)
+  from public.savings
+  where user_id = p_user_id;
+$$;
+
+-- Vérifie versements (≤ solde dispo du mois) ET retraits (≤ épargne cumulée)
+create or replace function public.check_saving_amount()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_balance numeric;
+  v_saved numeric;
+  v_available numeric;
+  v_total numeric;
+begin
+  if new.amount = 0 then
+    raise exception 'Le montant doit être différent de zéro.';
+  end if;
+
+  if new.amount > 0 then
+    -- Versement : ne peut dépasser le solde disponible du mois
+    v_balance := public.get_monthly_balance(new.user_id, new.transaction_month);
+    v_saved := public.get_monthly_saved(new.user_id, new.transaction_month);
+
+    if v_balance <= 0 then
+      raise exception 'Solde mensuel insuffisant pour épargner (solde : %)', v_balance;
+    end if;
+
+    v_available := v_balance - v_saved;
+
+    if new.amount > v_available then
+      raise exception 'Montant supérieur au solde disponible (max : %)', v_available;
+    end if;
+  else
+    -- Retrait : ne peut dépasser l'épargne cumulée totale
+    v_total := public.get_total_saved(new.user_id);
+
+    if v_total + new.amount < 0 then
+      raise exception 'Retrait supérieur à l''épargne cumulée (max : %)', v_total;
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+-- ============================================================================
 -- FIN DU SCRIPT
 -- ============================================================================
