@@ -3,6 +3,7 @@
  *
  * Props :
  *  - transaction : objet { amount, description, type, category, date }
+ *  - onPress      : callback appelé lors de l'appui sur la carte
  *  - onDelete     : callback appelé lors de la suppression
  */
 import React from "react";
@@ -10,14 +11,18 @@ import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { formatCurrency } from "../constants/categories";
 
-export default function TransactionCard({ transaction, onDelete }) {
+export default function TransactionCard({ transaction, onPress, onDelete }) {
 	const isIncome = transaction.type === "income";
 	const iconName = transaction.category?.icon || "wallet-outline";
 	const categoryName = transaction.category?.name || "Sans catégorie";
 	const categoryColor = transaction.category?.color || (isIncome ? "#4CAF50" : "#EF4444");
 
 	return (
-		<View className="bg-white mx-4 mb-3 p-4 rounded-2xl flex-row items-center shadow-sm border border-gray-100">
+		<TouchableOpacity
+			onPress={onPress ? () => onPress(transaction) : undefined}
+			disabled={!onPress}
+			activeOpacity={0.7}
+			className="bg-white mx-4 mb-3 p-4 rounded-2xl flex-row items-center shadow-sm border border-gray-100">
 			{/* Icône catégorie */}
 			<View
 				className="w-11 h-11 rounded-full items-center justify-center"
@@ -58,6 +63,6 @@ export default function TransactionCard({ transaction, onDelete }) {
 					<Ionicons name="trash-outline" size={18} color="#CCC" />
 				</TouchableOpacity>
 			)}
-		</View>
+		</TouchableOpacity>
 	);
 }

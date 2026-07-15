@@ -16,6 +16,7 @@ import useStore from "../store/useStore";
 import { getTransactions, getCategories, deleteTransaction, getTotalSavings, getMonthlySummary, getScheduledExpenses } from "../services/supabase";
 import { formatCurrency, getCurrentMonth, formatMonthLabel } from "../constants/categories";
 import TransactionCard from "../components/TransactionCard";
+import TransactionDetailModal from "../components/TransactionDetailModal";
 import ChartView from "../components/ChartView";
 import MonthSelector from "../components/MonthSelector";
 
@@ -42,6 +43,7 @@ export default function DashboardScreen({ navigation }) {
 	const [refreshing, setRefreshing] = useState(false);
 	const [savingsVisible, setSavingsVisible] = useState(false);
 	const [txFilter, setTxFilter] = useState("all"); // "all" | "income" | "expense"
+	const [selectedTx, setSelectedTx] = useState(null);
 
 	// Charger les données depuis Supabase pour le mois sélectionné
 	const loadData = useCallback(async () => {
@@ -77,6 +79,14 @@ export default function DashboardScreen({ navigation }) {
 		setRefreshing(true);
 		await loadData();
 		setRefreshing(false);
+	};
+
+	// Supprimer une transaction (depuis la carte ou le modal de détail)
+	const handleDeleteTransaction = (id) => {
+		const txToDelete = transactions.find((item) => item.id === id);
+		removeTransaction(id);
+		deleteTransaction(id, txToDelete?.type).catch(console.error);
+		setSelectedTx(null);
 	};
 
 	// Données calculées depuis le store
@@ -347,16 +357,21 @@ export default function DashboardScreen({ navigation }) {
 							<TransactionCard
 								key={tx.id}
 								transaction={tx}
-								onDelete={(id) => {
-									const selectedTx = transactions.find((item) => item.id === id);
-									removeTransaction(id);
-									deleteTransaction(id, selectedTx?.type).catch(console.error);
-								}}
+								onPress={setSelectedTx}
+								onDelete={handleDeleteTransaction}
 							/>
 						))
 					)}
 				</View>
 			</ScrollView>
+
+			{/* ── Modal détail transaction ──────────────────── */}
+			<TransactionDetailModal
+				visible={!!selectedTx}
+				transaction={selectedTx}
+				onClose={() => setSelectedTx(null)}
+				onDelete={handleDeleteTransaction}
+			/>
 
 			{/* ── FAB : Ajouter une transaction ─────────────── */}
 			<TouchableOpacity
