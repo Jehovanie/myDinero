@@ -9,7 +9,7 @@
  *  - Bouton pour ajouter une transaction
  */
 import React, { useEffect, useState, useCallback } from "react";
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import useStore from "../store/useStore";
@@ -41,6 +41,7 @@ export default function DashboardScreen({ navigation }) {
 	const [loading, setLoading] = useState(true);
 	const [refreshing, setRefreshing] = useState(false);
 	const [savingsVisible, setSavingsVisible] = useState(false);
+	const [txFilter, setTxFilter] = useState("all"); // "all" | "income" | "expense"
 
 	// Charger les données depuis Supabase pour le mois sélectionné
 	const loadData = useCallback(async () => {
@@ -84,6 +85,17 @@ export default function DashboardScreen({ navigation }) {
 	const monthlyExpenses = getMonthlyExpenses();
 	const expenseBreakdown = getCategoryBreakdown("expense");
 	const isCurrentMonth = selectedMonth === getCurrentMonth();
+
+	// Onglets Transactions : compteurs + liste filtrée
+	const incomeCount = transactions.filter((tx) => tx.type === "income").length;
+	const expenseCount = transactions.filter((tx) => tx.type === "expense").length;
+	const txTabs = [
+		{ key: "all", label: "Toutes", count: transactions.length },
+		{ key: "income", label: "Revenus", count: incomeCount },
+		{ key: "expense", label: "Dépenses", count: expenseCount },
+	];
+	const filteredTransactions =
+		txFilter === "all" ? transactions : transactions.filter((tx) => tx.type === txFilter);
 
 	if (loading) {
 		return (
@@ -253,25 +265,85 @@ export default function DashboardScreen({ navigation }) {
 
 				{/* ── Historique du mois ──────────────────────── */}
 				<View className="mt-4 pb-4">
-					<View className="flex-row items-center justify-between px-4 mb-3">
+					<View className="px-4 mb-3">
 						<Text className="text-gray-800 font-semibold text-lg">
 							{isCurrentMonth ? "Transactions du mois" : `Historique — ${formatMonthLabel(selectedMonth)}`}
 						</Text>
-						{transactions.length > 0 && (
-							<Text className="text-gray-400 text-xs">{transactions.length} transaction(s)</Text>
-						)}
 					</View>
 
-					{transactions.length === 0 ? (
+					{/* Onglets Toutes / Revenus / Dépenses */}
+					<View
+						style={{
+							flexDirection: "row",
+							backgroundColor: "#F1F1F4",
+							borderRadius: 16,
+							padding: 4,
+							marginHorizontal: 16,
+							marginBottom: 16,
+						}}
+					>
+						{txTabs.map((tab) => {
+							const active = txFilter === tab.key;
+							return (
+								<Pressable
+									key={tab.key}
+									onPress={() => setTxFilter(tab.key)}
+									style={{
+										flex: 1,
+										flexDirection: "row",
+										alignItems: "center",
+										justifyContent: "center",
+										paddingVertical: 8,
+										borderRadius: 12,
+										backgroundColor: active ? "#FFFFFF" : "transparent",
+									}}
+								>
+									<Text
+										style={{
+											fontSize: 13,
+											fontWeight: "600",
+											color: active ? "#6C5CE7" : "#999",
+										}}
+									>
+										{tab.label}
+									</Text>
+									<View
+										style={{
+											marginLeft: 6,
+											paddingHorizontal: 6,
+											paddingVertical: 1,
+											borderRadius: 999,
+											backgroundColor: active ? "#E8E4FF" : "#E2E2E6",
+										}}
+									>
+										<Text
+											style={{
+												fontSize: 10,
+												fontWeight: "700",
+												color: active ? "#6C5CE7" : "#999",
+											}}
+										>
+											{tab.count}
+										</Text>
+									</View>
+								</Pressable>
+							);
+						})}
+					</View>
+
+					{filteredTransactions.length === 0 ? (
 						<View className="items-center py-10">
 							<Ionicons name="receipt-outline" size={48} color="#DDD" />
 							<Text className="text-gray-400 mt-3 text-center px-8">
-								Aucune transaction pour {formatMonthLabel(selectedMonth).toLowerCase()}.{"\n"}
-								Utilisez les flèches pour consulter un autre mois.
+								{transactions.length === 0
+									? `Aucune transaction pour ${formatMonthLabel(selectedMonth).toLowerCase()}.\nUtilisez les flèches pour consulter un autre mois.`
+									: txFilter === "income"
+										? "Aucun revenu ce mois-ci."
+										: "Aucune dépense ce mois-ci."}
 							</Text>
 						</View>
 					) : (
-						transactions.map((tx) => (
+						filteredTransactions.map((tx) => (
 							<TransactionCard
 								key={tx.id}
 								transaction={tx}
